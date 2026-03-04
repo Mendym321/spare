@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spare — Effortless Giving</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+    .hide-scroll { scrollbar-width: none; }
+    .hide-scroll::-webkit-scrollbar { display: none; }
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  </style>
+</head>
+<body class="bg-slate-50 text-gray-900 antialiased">
+  <div id="root"></div>
+ 
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+ 
+    /* ─────────────────────────── MOCK DATA ─────────────────────────── */
+ 
+    const INIT_CARDS = [
+      { id: 1, type: 'Visa',       last4: '4242', name: 'Chase Sapphire',    color: '#4F46E5', roundups: true  },
+      { id: 2, type: 'Mastercard', last4: '8832', name: 'Amex Gold',         color: '#7C3AED', roundups: true  },
+      { id: 3, type: 'Visa',       last4: '1234', name: 'Bank of America',   color: '#0891B2', roundups: false },
+    ];
+ 
+    const INIT_CHARITIES = [
+      { id: 1, name: 'Feeding America',           cat: 'hunger',      emoji: '🍽️',  rating: 4.9, blurb: 'Fighting hunger across the US',            impact: '$1 = 10 meals',          active: true  },
+      { id: 2, name: 'World Wildlife Fund',        cat: 'environment', emoji: '🐼',  rating: 4.8, blurb: 'Protecting wildlife and wild places',        impact: '$5 = 1 acre protected',  active: false },
+      { id: 3, name: "St. Jude Children's",        cat: 'health',      emoji: '❤️',  rating: 4.9, blurb: 'No family pays for cancer treatment',        impact: 'Every child treated free', active: false },
+      { id: 4, name: 'Doctors Without Borders',    cat: 'health',      emoji: '🏥',  rating: 4.9, blurb: 'Emergency medical care worldwide',           impact: 'Reaching 70+ countries', active: false },
+      { id: 5, name: 'Habitat for Humanity',       cat: 'housing',     emoji: '🏠',  rating: 4.8, blurb: 'Building affordable homes',                 impact: '$50 = home foundation',  active: false },
+      { id: 6, name: 'UNICEF',                     cat: 'children',    emoji: '👶',  rating: 4.9, blurb: 'For every child, everywhere',               impact: '$5 = child vaccinated',  active: false },
+      { id: 7, name: 'American Red Cross',          cat: 'disaster',    emoji: '🔴',  rating: 4.7, blurb: 'Immediate emergency disaster relief',       impact: 'Relief in hours',        active: false },
+      { id: 8, name: 'Environmental Defense Fund', cat: 'environment', emoji: '🌱',  rating: 4.8, blurb: 'Science-based climate solutions',           impact: 'Climate action globally', active: false },
+    ];
+ 
+    const INIT_TXN = [
+      { id:  1, merchant: 'Starbucks',       amount: 6.75,  roundup: 0.25, date: '2026-03-04', cat: 'Food & Drink',   card: '4242', donated: false },
+      { id:  2, merchant: 'Whole Foods',     amount: 47.32, roundup: 0.68, date: '2026-03-04', cat: 'Groceries',      card: '4242', donated: false },
+      { id:  3, merchant: 'Uber',            amount: 12.40, roundup: 0.60, date: '2026-03-03', cat: 'Transport',      card: '8832', donated: false },
+      { id:  4, merchant: 'Netflix',         amount: 15.99, roundup: 0.01, date: '2026-03-03', cat: 'Entertainment',  card: '4242', donated: true  },
+      { id:  5, merchant: 'Target',          amount: 83.21, roundup: 0.79, date: '2026-03-02', cat: 'Shopping',       card: '8832', donated: true  },
+      { id:  6, merchant: 'Chipotle',        amount: 13.47, roundup: 0.53, date: '2026-03-02', cat: 'Food & Drink',   card: '4242', donated: true  },
+      { id:  7, merchant: 'Shell',           amount: 58.10, roundup: 0.90, date: '2026-03-01', cat: 'Gas',            card: '8832', donated: true  },
+      { id:  8, merchant: 'Amazon',          amount: 34.99, roundup: 0.01, date: '2026-03-01', cat: 'Shopping',       card: '4242', donated: true  },
+      { id:  9, merchant: 'Planet Fitness',  amount: 24.99, roundup: 0.01, date: '2026-02-28', cat: 'Health',         card: '8832', donated: true  },
+      { id: 10, merchant: "Trader Joe's",    amount: 62.18, roundup: 0.82, date: '2026-02-28', cat: 'Groceries',      card: '4242', donated: true  },
+      { id: 11, merchant: 'Spotify',         amount:  9.99, roundup: 0.01, date: '2026-02-27', cat: 'Entertainment',  card: '4242', donated: true  },
+      { id: 12, merchant: 'Lyft',            amount: 18.65, roundup: 0.35, date: '2026-02-27', cat: 'Transport',      card: '8832', donated: true  },
+    ];
+ 
+    const INIT_RECURRING = [
+      { id: 1, charityId: 1, charity: 'Feeding America', amount: 25, freq: 'monthly', next: '2026-04-01', active: true  },
+      { id: 2, charityId: 6, charity: 'UNICEF',           amount: 10, freq: 'monthly', next: '2026-04-15', active: true  },
+    ];
+ 
+    const CHART_DATA = [28.4, 35.2, 42.1, 38.9, 51.3, 0]; // last slot filled from live data
+ 
+    /* ─────────────────────────── ICONS ─────────────────────────── */
+ 
+    const icons = {
+      home:    'd="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22"',
+      card:    'd="M2 5h20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /><line x1="2" y1="10" x2="22" y2="10"',
+      list:    'points="9 6 21 6" /><polyline points="9 12 21 12" /><polyline points="9 18 21 18" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1"',
+      heart:   'd="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"',
+      repeat:  'd="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3"',
+      plus:    'x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12"',
+      x:       'd="M18 6L6 18M6 6l12 12"',
+      check:   'points="20 6 9 17 4 12"',
+      search:  'cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35"',
+      zap:     'points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"',
+      trash:   'd="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"',
+      trending:'points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13"',
+      dollar:  'x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"',
+      bell:    'd="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"',
+      chevron: 'd="M9 18l6-6-6-6"',
+      settings:'d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3"',
+    };
+ 
+    const Ic = ({ n, s = 20, cls = '' }) => (
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" className={cls}
+        dangerouslySetInnerHTML={{ __html: `<${icons[n].startsWith('d=') || icons[n].startsWith('cx') || icons[n].startsWith('x1') ? 'path' : icons[n].startsWith('points') ? 'polyline' : 'path'} ${icons[n]} />` }}
+      />
+    );
+ 
+    // Proper icon renderer
+    const Icon = ({ n, s = 20, cls = '' }) => {
+      const paths = {
+        home:     <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
+        card:     <><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></>,
+        list:     <><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></>,
+        heart:    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
+        repeat:   <><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></>,
+        plus:     <><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></>,
+        x:        <><path d="M18 6L6 18"/><path d="M6 6l12 12"/></>,
+        check:    <polyline points="20 6 9 17 4 12"/>,
+        search:   <><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></>,
+        zap:      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
+        trash:    <><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
+        trending: <><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>,
+        dollar:   <><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>,
+        bell:     <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>,
+        chevron:  <path d="M9 18l6-6-6-6"/>,
+      };
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>
+          {paths[n]}
+        </svg>
+      );
+    };
+ 
+    /* ─────────────────────────── PRIMITIVES ─────────────────────────── */
+ 
+    const Toggle = ({ on, toggle }) => (
+      <button onClick={toggle}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${on ? 'bg-indigo-500' : 'bg-gray-200'}`}>
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
+    );
+ 
+    const Badge = ({ children, color = 'indigo' }) => {
+      const c = { indigo: 'bg-indigo-100 text-indigo-700', emerald: 'bg-emerald-100 text-emerald-700', amber: 'bg-amber-100 text-amber-700', rose: 'bg-rose-100 text-rose-700' };
+      return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${c[color]}`}>{children}</span>;
+    };
+ 
+    const Modal = ({ title, onClose, children }) => (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+            <h2 className="font-bold text-lg text-gray-900">{title}</h2>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+              <Icon n="x" s={18} />
+            </button>
+          </div>
+          <div className="px-6 py-5">{children}</div>
+        </div>
+      </div>
+    );
+ 
+    const Field = ({ label, children }) => (
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+        {children}
+      </div>
+    );
+ 
+    const Input = (props) => (
+      <input {...props} className={`w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent placeholder-gray-400 ${props.className||''}`} />
+    );
+ 
+    const Select = ({ value, onChange, children }) => (
+      <select value={value} onChange={onChange}
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-gray-900">
+        {children}
+      </select>
+    );
+ 
+    const Btn = ({ children, onClick, variant = 'primary', cls = '' }) => {
+      const v = {
+        primary: 'bg-indigo-500 hover:bg-indigo-600 text-white',
+        ghost:   'border border-gray-200 text-gray-700 hover:bg-gray-50',
+        danger:  'text-rose-500 hover:bg-rose-50',
+      };
+      return (
+        <button onClick={onClick} className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${v[variant]} ${cls}`}>
+          {children}
+        </button>
+      );
+    };
+ 
+    /* ─────────────────────────── STAT CARD ─────────────────────────── */
+ 
+    const Stat = ({ label, value, sub, icon, accent, trend }) => {
+      const a = {
+        indigo:  { ring: 'ring-indigo-100',  bg: 'bg-indigo-50',  ic: 'text-indigo-500' },
+        emerald: { ring: 'ring-emerald-100', bg: 'bg-emerald-50', ic: 'text-emerald-500' },
+        amber:   { ring: 'ring-amber-100',   bg: 'bg-amber-50',   ic: 'text-amber-500' },
+        violet:  { ring: 'ring-violet-100',  bg: 'bg-violet-50',  ic: 'text-violet-500' },
+      };
+      const c = a[accent] || a.indigo;
+      return (
+        <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-4">
+            <div className={`p-2.5 rounded-xl ${c.bg} ring-1 ${c.ring}`}>
+              <Icon n={icon} s={17} cls={c.ic} />
+            </div>
+            {trend && <Badge color="emerald">{trend}</Badge>}
+          </div>
+          <div className="text-2xl font-extrabold text-gray-900 mb-0.5">{value}</div>
+          <div className="text-sm text-gray-500 font-medium">{label}</div>
+          {sub && <div className="text-xs text-gray-400 mt-1">{sub}</div>}
+        </div>
+      );
+    };
+ 
+    /* ─────────────────────────── BAR CHART ─────────────────────────── */
+ 
+    const BarChart = ({ liveValue }) => {
+      const raw   = [...CHART_DATA.slice(0, 5), liveValue];
+      const max   = Math.max(...raw, 1);
+      const mos   = ['Oct','Nov','Dec','Jan','Feb','Mar'];
+      const total = raw.reduce((s,v) => s+v, 0);
+      return (
+        <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-gray-100 h-full">
+          <div className="flex items-start justify-between mb-5">
+            <div>
+              <h3 className="font-bold text-gray-900">Giving History</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Last 6 months</p>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-gray-900">${total.toFixed(2)}</div>
+              <div className="text-xs text-gray-400">lifetime total</div>
+            </div>
+          </div>
+          <div className="flex items-end gap-1.5 h-28">
+            {raw.map((v, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                <div className="w-full relative group rounded-t-lg overflow-hidden"
+                  style={{ height: `${Math.max((v / max) * 96, 4)}px`, background: i === 5 ? '#6366f1' : '#e0e7ff' }}>
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-black transition-opacity" />
+                </div>
+                <span className="text-[10px] text-gray-400 font-medium">{mos[i]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+ 
+    /* ─────────────────────────── DASHBOARD ─────────────────────────── */
+ 
+    const Dashboard = ({ txns, charities, recurring, onNav }) => {
+      const activeCharity  = charities.find(c => c.active);
+      const pending        = txns.filter(t => !t.donated);
+      const pendingAmt     = pending.reduce((s, t) => s + t.roundup, 0);
+      const donatedAmt     = txns.filter(t => t.donated).reduce((s, t) => s + t.roundup, 0);
+      const recurringTotal = recurring.filter(r => r.active).reduce((s, r) => s + r.amount, 0);
+      const liveMonth      = donatedAmt + recurringTotal;
+ 
+      return (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-400 font-medium">Good morning</p>
+              <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">Alex Johnson 👋</h1>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-200">A</div>
+          </div>
+ 
+          {/* Pending Banner */}
+          {pendingAmt > 0 && (
+            <div className="bg-gradient-to-r from-indigo-500 to-violet-500 rounded-2xl p-5 flex items-center justify-between text-white shadow-lg shadow-indigo-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Icon n="zap" s={18} />
+                </div>
+                <div>
+                  <div className="font-bold">${pendingAmt.toFixed(2)} in round-ups ready</div>
+                  <div className="text-indigo-200 text-sm">{pending.length} transactions tracked</div>
+                </div>
+              </div>
+              <button onClick={() => onNav('transactions')}
+                className="bg-white text-indigo-600 font-bold px-4 py-2 rounded-xl text-sm hover:bg-indigo-50 transition-colors whitespace-nowrap">
+                Review →
+              </button>
+            </div>
+          )}
+ 
+          {/* Stats */}
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <Stat label="Donated This Month" value={`$${liveMonth.toFixed(2)}`} icon="heart"     accent="indigo"  trend="+12%" />
+            <Stat label="Pending Round-ups"  value={`$${pendingAmt.toFixed(2)}`} icon="zap"      accent="amber"   sub={`${pending.length} txns`} />
+            <Stat label="Monthly Recurring"  value={`$${recurringTotal}/mo`}      icon="repeat"   accent="emerald" sub={`${recurring.filter(r=>r.active).length} active`} />
+            <Stat label="Lifetime Given"     value={`$${(284.32 + liveMonth).toFixed(2)}`} icon="trending" accent="violet" />
+          </div>
+ 
+          {/* Chart + Active Charity */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <BarChart liveValue={liveMonth} />
+            </div>
+            {activeCharity && (
+              <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-gray-100 flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-900">Your Cause</h3>
+                  <Badge color="emerald">Active</Badge>
+                </div>
+                <div className="text-4xl mb-3">{activeCharity.emoji}</div>
+                <div className="font-bold text-gray-900 text-lg mb-1">{activeCharity.name}</div>
+                <div className="text-sm text-gray-500 mb-4 flex-1">{activeCharity.blurb}</div>
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 ring-1 ring-emerald-100">
+                  <div className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">Your impact</div>
+                  <div className="text-sm font-bold text-emerald-800">{activeCharity.impact}</div>
+                </div>
+                <button onClick={() => onNav('charities')}
+                  className="mt-3 w-full text-center text-sm text-indigo-500 hover:text-indigo-700 font-semibold py-1 transition-colors">
+                  Change cause →
+                </button>
+              </div>
+            )}
+          </div>
+ 
+          {/* Recent Transactions */}
+          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900">Recent Transactions</h3>
+              <button onClick={() => onNav('transactions')} className="text-sm text-indigo-500 hover:text-indigo-700 font-semibold transition-colors">See all →</button>
+            </div>
+            {txns.slice(0, 6).map(t => (
+              <div key={t.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/60 transition-colors border-b border-gray-50 last:border-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                    {t.merchant[0]}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm">{t.merchant}</div>
+                    <div className="text-xs text-gray-400">{t.cat} · {t.date}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-gray-900">${t.amount.toFixed(2)}</div>
+                    <div className={`text-xs font-semibold ${t.donated ? 'text-emerald-500' : 'text-amber-500'}`}>
+                      +${t.roundup.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${t.donated ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                    {t.donated
+                      ? <Icon n="check" s={12} cls="text-emerald-600" />
+                      : <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+ 
+    /* ─────────────────────────── CARDS VIEW ─────────────────────────── */
+ 
+    const CardView = ({ cards, setCards }) => {
+      const [showAdd, setShowAdd] = useState(false);
+      const [form, setForm]       = useState({ name: '', last4: '', type: 'Visa' });
+      const [err, setErr]         = useState('');
+ 
+      const toggleRoundup = id => setCards(cards.map(c => c.id === id ? { ...c, roundups: !c.roundups } : c));
+      const remove        = id => setCards(cards.filter(c => c.id !== id));
+ 
+      const handleAdd = () => {
+        if (!form.name.trim())           return setErr('Please enter a card name.');
+        if (!/^\d{4}$/.test(form.last4)) return setErr('Enter exactly 4 digits.');
+        const colors = ['#4F46E5','#7C3AED','#0891B2','#059669','#DB2777'];
+        setCards([...cards, { id: Date.now(), type: form.type, last4: form.last4, name: form.name, color: colors[cards.length % colors.length], roundups: true }]);
+        setShowAdd(false);
+        setForm({ name: '', last4: '', type: 'Visa' });
+        setErr('');
+      };
+ 
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-extrabold text-gray-900">Connected Cards</h1>
+              <p className="text-gray-400 mt-1 text-sm">Manage which cards track round-ups</p>
+            </div>
+            <Btn onClick={() => setShowAdd(true)}>
+              <Icon n="plus" s={16} /> Add Card
+            </Btn>
+          </div>
+ 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {cards.map(card => (
+              <div key={card.id} className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                {/* Card face */}
+                <div className="p-6 text-white relative select-none" style={{ background: `linear-gradient(135deg, ${card.color}ee, ${card.color}88)` }}>
+                  <div className="flex items-center justify-between mb-8">
+                    <span className="font-black text-xl tracking-wider">spare</span>
+                    <span className="text-white/70 text-xs font-bold uppercase tracking-widest">{card.type}</span>
+                  </div>
+                  <div className="font-mono text-lg tracking-[0.25em] mb-2">•••• •••• •••• {card.last4}</div>
+                  <div className="text-white/60 text-sm">{card.name}</div>
+                  {card.roundups && (
+                    <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                      TRACKING
+                    </div>
+                  )}
+                </div>
+                {/* Controls */}
+                <div className="px-5 py-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">Round-up Donations</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {card.roundups ? 'On — spare change goes to charity' : 'Off — not tracking'}
+                      </div>
+                    </div>
+                    <Toggle on={card.roundups} toggle={() => toggleRoundup(card.id)} />
+                  </div>
+                  <div className="flex gap-2 pt-3 border-t border-gray-100">
+                    <button onClick={() => remove(card.id)}
+                      className="flex items-center gap-1.5 text-rose-400 hover:text-rose-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors">
+                      <Icon n="trash" s={12} /> Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+ 
+            {/* Add card placeholder */}
+            <button onClick={() => setShowAdd(true)}
+              className="border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-gray-400 hover:border-indigo-300 hover:text-indigo-400 transition-colors group">
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-indigo-50 flex items-center justify-center transition-colors">
+                <Icon n="plus" s={22} />
+              </div>
+              <span className="text-sm font-semibold">Add a card</span>
+            </button>
+          </div>
+ 
+          {showAdd && (
+            <Modal title="Connect a Card" onClose={() => { setShowAdd(false); setErr(''); }}>
+              <div className="space-y-4">
+                <Field label="Card Nickname">
+                  <Input placeholder="e.g. Chase Checking" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                </Field>
+                <Field label="Last 4 Digits">
+                  <Input placeholder="1234" maxLength={4} value={form.last4} onChange={e => setForm({...form, last4: e.target.value.replace(/\D/g,'')})} />
+                </Field>
+                <Field label="Card Type">
+                  <Select value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+                    {['Visa','Mastercard','Amex','Discover'].map(t => <option key={t}>{t}</option>)}
+                  </Select>
+                </Field>
+                {err && <div className="text-sm text-rose-500 font-medium">{err}</div>}
+                <div className="flex items-start gap-2.5 bg-blue-50 rounded-xl p-3.5 text-sm text-blue-700">
+                  <Icon n="bell" s={16} cls="mt-0.5 shrink-0 text-blue-500" />
+                  <span>We use read-only bank connections. We never store full card numbers or initiate charges.</span>
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <Btn variant="ghost" cls="flex-1" onClick={() => { setShowAdd(false); setErr(''); }}>Cancel</Btn>
+                  <Btn cls="flex-1" onClick={handleAdd}>Connect Card</Btn>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </div>
+      );
+    };
+ 
+    /* ─────────────────────────── TRANSACTIONS ─────────────────────────── */
+ 
+    const TxnView = ({ txns }) => {
+      const [filter, setFilter] = useState('all');
+ 
+      const list = txns.filter(t => filter === 'all' ? true : filter === 'pending' ? !t.donated : t.donated);
+      const totalRoundup  = txns.reduce((s,t) => s + t.roundup, 0);
+      const donatedRoundup = txns.filter(t => t.donated).reduce((s,t) => s + t.roundup, 0);
+      const pending       = txns.filter(t => !t.donated).reduce((s,t) => s + t.roundup, 0);
+ 
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900">Transactions</h1>
+            <p className="text-gray-400 mt-1 text-sm">Every purchase rounds up for good</p>
+          </div>
+ 
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Transactions',   value: txns.length, color: 'text-gray-900' },
+              { label: 'Donated',        value: `$${donatedRoundup.toFixed(2)}`, color: 'text-emerald-600' },
+              { label: 'Pending',        value: `$${pending.toFixed(2)}`, color: 'text-amber-500' },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm ring-1 ring-gray-100 text-center">
+                <div className={`text-xl font-extrabold ${s.color}`}>{s.value}</div>
+                <div className="text-xs text-gray-400 mt-0.5 font-medium">{s.label}</div>
+              </div>
+            ))}
+          </div>
+ 
+          <div className="flex gap-2">
+            {['all','pending','donated'].map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold capitalize transition-colors ${filter === f ? 'bg-indigo-500 text-white shadow-sm shadow-indigo-200' : 'bg-white text-gray-500 ring-1 ring-gray-200 hover:ring-indigo-300'}`}>
+                {f}
+              </button>
+            ))}
+          </div>
+ 
+          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
+            {list.map((t, i) => (
+              <div key={t.id} className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors ${i !== list.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
+                  {t.merchant[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-gray-900">{t.merchant}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{t.cat} · ···· {t.card} · {t.date}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-semibold text-gray-900 text-sm">${t.amount.toFixed(2)}</div>
+                  <div className="text-xs text-gray-400">spent</div>
+                </div>
+                <div className="text-right shrink-0 w-16">
+                  <div className={`font-bold text-sm ${t.donated ? 'text-emerald-500' : 'text-amber-500'}`}>+${t.roundup.toFixed(2)}</div>
+                  <div className={`text-xs ${t.donated ? 'text-emerald-400' : 'text-amber-400'}`}>{t.donated ? 'donated' : 'pending'}</div>
+                </div>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${t.donated ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                  {t.donated ? <Icon n="check" s={13} cls="text-emerald-600" /> : <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+ 
+    /* ─────────────────────────── CHARITIES ─────────────────────────── */
+ 
+    const CharityView = ({ charities, setCharities }) => {
+      const [q,    setQ]    = useState('');
+      const [cat,  setCat]  = useState('all');
+ 
+      const CATS = ['all','hunger','environment','health','housing','children','disaster'];
+ 
+      const list = charities.filter(c => {
+        const matchQ   = c.name.toLowerCase().includes(q.toLowerCase()) || c.blurb.toLowerCase().includes(q.toLowerCase());
+        const matchCat = cat === 'all' || c.cat === cat;
+        return matchQ && matchCat;
+      });
+ 
+      const select = id => setCharities(charities.map(c => ({ ...c, active: c.id === id })));
+      const active = charities.find(c => c.active);
+ 
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900">Choose Your Cause</h1>
+            <p className="text-gray-400 mt-1 text-sm">Your round-ups and donations go here</p>
+          </div>
+ 
+          {active && (
+            <div className="bg-gradient-to-r from-indigo-500 to-violet-500 rounded-2xl p-5 text-white flex items-center gap-4 shadow-lg shadow-indigo-200">
+              <div className="text-3xl">{active.emoji}</div>
+              <div className="flex-1">
+                <div className="text-xs text-indigo-200 font-semibold uppercase tracking-wide">Currently supporting</div>
+                <div className="font-bold text-lg">{active.name}</div>
+                <div className="text-indigo-200 text-sm">{active.impact}</div>
+              </div>
+            </div>
+          )}
+ 
+          <div className="relative">
+            <Icon n="search" s={17} cls="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input placeholder="Search charities…" value={q} onChange={e => setQ(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl ring-1 ring-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm placeholder-gray-400" />
+          </div>
+ 
+          <div className="flex gap-2 overflow-x-auto hide-scroll pb-1">
+            {CATS.map(c => (
+              <button key={c} onClick={() => setCat(c)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap capitalize transition-colors ${cat === c ? 'bg-indigo-500 text-white' : 'bg-white text-gray-500 ring-1 ring-gray-200 hover:ring-indigo-300'}`}>
+                {c}
+              </button>
+            ))}
+          </div>
+ 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {list.map(c => (
+              <div key={c.id} className={`bg-white rounded-2xl p-5 shadow-sm ring-2 transition-all ${c.active ? 'ring-indigo-400 shadow-indigo-100' : 'ring-gray-100 hover:ring-gray-200'}`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="text-3xl">{c.emoji}</div>
+                  {c.active && <Badge color="indigo">✓ Active</Badge>}
+                </div>
+                <h3 className="font-bold text-gray-900 text-base mb-1">{c.name}</h3>
+                <p className="text-sm text-gray-500 mb-3">{c.blurb}</p>
+                <div className="flex items-center gap-1 mb-3">
+                  <span className="text-amber-400 text-xs">{'★'.repeat(Math.round(c.rating))}</span>
+                  <span className="text-xs text-gray-400 ml-1">{c.rating} · Charity Navigator</span>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 mb-4 ring-1 ring-gray-100">
+                  <div className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Impact</div>
+                  <div className="text-sm font-bold text-gray-800">{c.impact}</div>
+                </div>
+                <button onClick={() => select(c.id)}
+                  className={`w-full py-2.5 rounded-xl text-sm font-bold transition-colors ${c.active ? 'bg-indigo-500 text-white' : 'ring-1 ring-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
+                  {c.active ? '✓ Selected' : 'Select This Cause'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+ 
+    /* ─────────────────────────── RECURRING ─────────────────────────── */
+ 
+    const RecurringView = ({ recurring, setRecurring, charities }) => {
+      const [showAdd, setShowAdd] = useState(false);
+      const [form, setForm]       = useState({ charityId: '1', amount: '', freq: 'monthly' });
+      const [err, setErr]         = useState('');
+ 
+      const total = recurring.filter(r => r.active).reduce((s,r) => s + r.amount, 0);
+ 
+      const toggle = id => setRecurring(recurring.map(r => r.id === id ? { ...r, active: !r.active } : r));
+      const remove = id => setRecurring(recurring.filter(r => r.id !== id));
+ 
+      const handleAdd = () => {
+        const amt = parseFloat(form.amount);
+        if (!amt || amt <= 0) return setErr('Enter a valid amount.');
+        const ch = charities.find(c => c.id === parseInt(form.charityId)) || charities[0];
+        setRecurring([...recurring, {
+          id: Date.now(), charityId: ch.id, charity: ch.name,
+          amount: amt, freq: form.freq, next: '2026-04-01', active: true,
+        }]);
+        setShowAdd(false);
+        setForm({ charityId: '1', amount: '', freq: 'monthly' });
+        setErr('');
+      };
+ 
+      const freqLabel = f => ({ weekly: '/wk', monthly: '/mo', yearly: '/yr' })[f] || '/mo';
+ 
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-extrabold text-gray-900">Recurring</h1>
+              <p className="text-gray-400 mt-1 text-sm">Automated, effortless giving</p>
+            </div>
+            <Btn onClick={() => setShowAdd(true)}>
+              <Icon n="plus" s={16} /> New
+            </Btn>
+          </div>
+ 
+          {/* Monthly summary */}
+          <div className="bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-200">
+            <div className="text-indigo-200 text-sm font-semibold mb-1">Total recurring giving</div>
+            <div className="flex items-end gap-2 mb-1">
+              <span className="text-5xl font-extrabold">${total.toFixed(2)}</span>
+              <span className="text-indigo-200 text-xl mb-1">/mo</span>
+            </div>
+            <div className="text-indigo-200 text-sm">${(total * 12).toFixed(2)} per year to charity</div>
+          </div>
+ 
+          {/* List */}
+          <div className="space-y-3">
+            {recurring.map(r => (
+              <div key={r.id} className={`bg-white rounded-2xl p-5 shadow-sm ring-1 transition-all ${r.active ? 'ring-gray-100' : 'ring-gray-100 opacity-60'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-900">{r.charity}</div>
+                    <div className="text-gray-500 text-sm mt-0.5">
+                      <span className="font-semibold text-gray-900">${r.amount.toFixed(2)}</span>
+                      <span className="text-gray-400">{freqLabel(r.freq)}</span>
+                      <span className="mx-2">·</span>
+                      <span className="capitalize">{r.freq}</span>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">Next: {r.next}</div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {!r.active && <span className="text-xs text-gray-400 font-medium">Paused</span>}
+                    <Toggle on={r.active} toggle={() => toggle(r.id)} />
+                  </div>
+                </div>
+                <div className="pt-3 mt-3 border-t border-gray-50 flex gap-2">
+                  <button onClick={() => remove(r.id)}
+                    className="flex items-center gap-1.5 text-rose-400 hover:text-rose-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors">
+                    <Icon n="trash" s={12} /> Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+ 
+            {recurring.length === 0 && (
+              <div className="text-center py-16 text-gray-300">
+                <Icon n="repeat" s={44} cls="mx-auto mb-4" />
+                <div className="font-bold text-gray-500">No recurring donations</div>
+                <div className="text-sm text-gray-400 mt-1">Set one up to give automatically every month</div>
+              </div>
+            )}
+          </div>
+ 
+          {showAdd && (
+            <Modal title="New Recurring Donation" onClose={() => { setShowAdd(false); setErr(''); }}>
+              <div className="space-y-4">
+                <Field label="Charity">
+                  <Select value={form.charityId} onChange={e => setForm({...form, charityId: e.target.value})}>
+                    {charities.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Amount">
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                    <Input type="number" placeholder="0.00" className="pl-8"
+                      value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
+                  </div>
+                </Field>
+                <Field label="Frequency">
+                  <div className="grid grid-cols-3 gap-2">
+                    {['weekly','monthly','yearly'].map(f => (
+                      <button key={f} onClick={() => setForm({...form, freq: f})}
+                        className={`py-2.5 rounded-xl text-sm font-semibold capitalize transition-colors ${form.freq === f ? 'bg-indigo-500 text-white' : 'ring-1 ring-gray-200 text-gray-600 hover:ring-indigo-300'}`}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                {err && <div className="text-sm text-rose-500 font-medium">{err}</div>}
+                <div className="flex gap-3 pt-1">
+                  <Btn variant="ghost" cls="flex-1" onClick={() => { setShowAdd(false); setErr(''); }}>Cancel</Btn>
+                  <Btn cls="flex-1" onClick={handleAdd}>Set Up</Btn>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </div>
+      );
+    };
+ 
+    /* ─────────────────────────── NAV ─────────────────────────── */
+ 
+    const NAV = [
+      { id: 'dashboard',    label: 'Home',        icon: 'home'    },
+      { id: 'cards',        label: 'Cards',       icon: 'card'    },
+      { id: 'transactions', label: 'Activity',    icon: 'list'    },
+      { id: 'charities',    label: 'Causes',      icon: 'heart'   },
+      { id: 'recurring',    label: 'Recurring',   icon: 'repeat'  },
+    ];
+ 
+    const Sidebar = ({ active, setActive }) => (
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 min-h-screen sticky top-0 h-screen">
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-6 h-16 border-b border-gray-100">
+          <div className="w-8 h-8 bg-indigo-500 rounded-xl flex items-center justify-center shadow-sm shadow-indigo-200">
+            <span className="text-white font-black text-sm">S</span>
+          </div>
+          <span className="font-black text-gray-900 text-xl tracking-tight">spare</span>
+        </div>
+        {/* Nav */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          {NAV.map(n => (
+            <button key={n.id} onClick={() => setActive(n.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${active === n.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
+              <Icon n={n.icon} s={18} cls={active === n.id ? 'text-indigo-500' : ''} />
+              {n.label}
+            </button>
+          ))}
+        </nav>
+        {/* User */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex items-center gap-3 px-2">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-sm font-black shadow-sm">A</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-gray-900 truncate">Alex Johnson</div>
+              <div className="text-xs text-gray-400 truncate">alex@email.com</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    );
+ 
+    const BottomNav = ({ active, setActive }) => (
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-100 flex z-40 safe-area-inset-bottom">
+        {NAV.map(n => (
+          <button key={n.id} onClick={() => setActive(n.id)}
+            className={`flex-1 flex flex-col items-center py-3 gap-1 text-[10px] font-bold transition-colors ${active === n.id ? 'text-indigo-600' : 'text-gray-400'}`}>
+            <Icon n={n.icon} s={21} />
+            {n.label}
+          </button>
+        ))}
+      </nav>
+    );
+ 
+    /* ─────────────────────────── APP ─────────────────────────── */
+ 
+    const App = () => {
+      const [view,      setView]      = useState('dashboard');
+      const [cards,     setCards]     = useState(INIT_CARDS);
+      const [charities, setCharities] = useState(INIT_CHARITIES);
+      const [txns]                    = useState(INIT_TXN);
+      const [recurring, setRecurring] = useState(INIT_RECURRING);
+ 
+      return (
+        <div className="flex min-h-screen bg-slate-50">
+          <Sidebar active={view} setActive={setView} />
+          <main className="flex-1 p-5 sm:p-8 pb-24 md:pb-8 max-w-4xl mx-auto w-full">
+            {view === 'dashboard'    && <Dashboard   txns={txns} charities={charities} recurring={recurring} onNav={setView} />}
+            {view === 'cards'        && <CardView     cards={cards} setCards={setCards} />}
+            {view === 'transactions' && <TxnView      txns={txns} />}
+            {view === 'charities'    && <CharityView  charities={charities} setCharities={setCharities} />}
+            {view === 'recurring'    && <RecurringView recurring={recurring} setRecurring={setRecurring} charities={charities} />}
+          </main>
+          <BottomNav active={view} setActive={setView} />
+        </div>
+      );
+    };
+ 
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
