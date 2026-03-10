@@ -41,8 +41,8 @@
      *  ever read and write their own data, even with the anon key.
      *
      * ─────────────────────────────────────────────────────────────────────── */
-    const SUPABASE_URL  = 'https://itbpksbeaallsngnworm.supabase.co';   // ← paste here
-    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0YnBrc2JlYWFsbHNuZ253b3JtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNjEyOTgsImV4cCI6MjA4ODczNzI5OH0.mHKmDCeH8JiCJ4H7v8zwJKIOs7O3_M3u0y44bAtBkj0';  // ← paste here (eyJhbGci...)
+    const SUPABASE_URL  = 'YOUR_SUPABASE_URL';   // ← paste here
+    const SUPABASE_ANON = 'YOUR_SUPABASE_ANON';  // ← paste here (eyJhbGci...)
 
     const isDemoMode = SUPABASE_URL === 'YOUR_SUPABASE_URL';
     const sb = !isDemoMode
@@ -465,12 +465,12 @@
           if (sb) {
             const { data: { user } } = await sb.auth.getUser();
             await sb.from('donations').insert({
-              user_id:       user.id,
-              amount:        amt,
-              donation_type: 'one_time',
-              charity_name:  charity.name,
-              charity_ein:   charity.ein,
-              stripe_status: 'pending', // will be updated when Stripe is wired
+              user_id:          user.id,
+              amount:           amt,
+              donation_type:    'one_time',
+              note:             charity.name,
+              stripe_status:    'pending',
+              every_org_status: 'pending',
             });
           }
           // Simulate processing delay
@@ -864,7 +864,7 @@
         if (sb) {
           const { data: { user } } = await sb.auth.getUser();
           // Upsert the user's active charity selection
-          await sb.from('user_charities').upsert({ user_id: user.id, charity_id: id, is_active: true }, { onConflict: 'user_id' });
+          await sb.from('user_charities').upsert({ user_id: user.id, charity_id: id, is_active: true }, { onConflict: 'user_id,charity_id' });
         }
       };
 
@@ -1178,7 +1178,7 @@
         setIsNewUser(false);
         if (sb && ch) {
           const { data: { user: u } } = await sb.auth.getUser();
-          await sb.from('user_charities').upsert({ user_id: u.id, charity_id: charityId, is_active: true }, { onConflict: 'user_id' });
+          await sb.from('user_charities').upsert({ user_id: u.id, charity_id: charityId, is_active: true }, { onConflict: 'user_id,charity_id' });
         }
       };
 
