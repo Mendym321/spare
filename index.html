@@ -4,12 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>sumthing — effortless giving</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Supabase JS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -37,10 +36,12 @@
      *  4. Save this file and reload — auth will work immediately
      *
      * ─────────────────────────────────────────────────────────────────────── */
-    const SUPABASE_URL      = 'YOUR_SUPABASE_URL';       // ← replace this
-    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // ← replace this
-
-    const supabase = supabase_js.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SUPABASE_URL      = window.SUPABASE_URL      || 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+    const isDemoMode = !SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL';
+    const supabase = !isDemoMode && window.supabase
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
 
     /* ─────────────────────────── MOCK DATA (used when not yet in DB) ─────── */
 
@@ -199,7 +200,7 @@
       const [err,      setErr]      = useState('');
       const [msg,      setMsg]      = useState('');
 
-      const isDemoMode = SUPABASE_URL === 'YOUR_SUPABASE_URL';
+      // isDemoMode is defined at the top of the app
 
       const handle = async () => {
         setErr(''); setMsg('');
@@ -1105,7 +1106,7 @@
        *
        */
       useEffect(() => {
-        if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+        if (!supabase) {
           setAuthReady(true); // demo mode — skip real auth check
           return;
         }
@@ -1120,7 +1121,7 @@
       }, []);
 
       const signOut = async () => {
-        if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') await supabase.auth.signOut();
+        if (supabase) await supabase.auth.signOut();
         setUser(null);
       };
 
