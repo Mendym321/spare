@@ -25,89 +25,67 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useCallback } = React;
 
     /* ─────────────────────────── SUPABASE CONFIG ───────────────────────────
      *
-     *  SETUP INSTRUCTIONS:
-     *  1. Go to https://supabase.com → your project → Settings → API
-     *  2. Copy "Project URL" and paste below as SUPABASE_URL
-     *  3. Copy "anon public" key and paste below as SUPABASE_ANON_KEY
-     *  4. Save this file and reload — auth will work immediately
+     *  Replace the two values below with your real Supabase credentials.
+     *
+     *  WHERE TO FIND THEM:
+     *  supabase.com → your project → Settings → API
+     *    • SUPABASE_URL   = "Project URL"  e.g. https://xxxx.supabase.co
+     *    • SUPABASE_ANON  = "anon public"  the long eyJhbGci... key
+     *
+     *  The anon key is safe to put in frontend code — it's designed for this.
+     *  Row Level Security (from the schema SQL) makes sure users can only
+     *  ever read and write their own data, even with the anon key.
      *
      * ─────────────────────────────────────────────────────────────────────── */
-    const SUPABASE_URL      = window.SUPABASE_URL      || 'YOUR_SUPABASE_URL';
-    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
-    const isDemoMode = !SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL';
-    const supabase = !isDemoMode && window.supabase
-      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    const SUPABASE_URL  = 'https://itbpksbeaallsngnworm.supabase.co';   // ← paste here
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0YnBrc2JlYWFsbHNuZ253b3JtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNjEyOTgsImV4cCI6MjA4ODczNzI5OH0.mHKmDCeH8JiCJ4H7v8zwJKIOs7O3_M3u0y44bAtBkj0';  // ← paste here (eyJhbGci...)
+
+    const isDemoMode = SUPABASE_URL === 'YOUR_SUPABASE_URL';
+    const sb = !isDemoMode
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
       : null;
 
-    /* ─────────────────────────── MOCK DATA (used when not yet in DB) ─────── */
-
-    const INIT_CARDS = [
-      { id: 1, type: 'Visa',       last4: '4242', name: 'Chase Sapphire',  color: '#4F46E5', roundups: true  },
-      { id: 2, type: 'Mastercard', last4: '8832', name: 'Amex Gold',       color: '#7C3AED', roundups: true  },
-      { id: 3, type: 'Visa',       last4: '1234', name: 'Bank of America', color: '#0891B2', roundups: false },
+    /* ─────────────────────────── FEATURED CHARITIES ────────────────────────
+     *  These are shown in the charity picker. In a later version this list
+     *  comes from the charities table in Supabase (already seeded by schema.sql).
+     *  For now it lives here so the UI works without a DB round-trip.
+     * ─────────────────────────────────────────────────────────────────────── */
+    const FEATURED_CHARITIES = [
+      { id: 1, name: 'Feeding America',           cat: 'hunger',      emoji: '🍽️', rating: 4.9, blurb: 'Fighting hunger across the US',      impact: '$1 = 10 meals',           ein: '36-3673599' },
+      { id: 2, name: 'World Wildlife Fund',        cat: 'environment', emoji: '🐼', rating: 4.8, blurb: 'Protecting wildlife and wild places', impact: '$5 = 1 acre protected',   ein: '52-1693387' },
+      { id: 3, name: "St. Jude Children's",        cat: 'health',      emoji: '❤️', rating: 4.9, blurb: 'No family pays for cancer treatment', impact: 'Every child treated free', ein: '62-0646012' },
+      { id: 4, name: 'Doctors Without Borders',    cat: 'health',      emoji: '🏥', rating: 4.9, blurb: 'Emergency medical care worldwide',    impact: 'Reaching 70+ countries',  ein: '13-3433452' },
+      { id: 5, name: 'Habitat for Humanity',       cat: 'housing',     emoji: '🏠', rating: 4.8, blurb: 'Building affordable homes',           impact: '$50 = home foundation',   ein: '91-1914868' },
+      { id: 6, name: 'UNICEF',                     cat: 'children',    emoji: '👶', rating: 4.9, blurb: 'For every child, everywhere',         impact: '$5 = child vaccinated',   ein: '13-1760110' },
+      { id: 7, name: 'American Red Cross',          cat: 'disaster',    emoji: '🔴', rating: 4.7, blurb: 'Immediate emergency disaster relief', impact: 'Relief in hours',         ein: '53-0196605' },
+      { id: 8, name: 'Environmental Defense Fund', cat: 'environment', emoji: '🌱', rating: 4.8, blurb: 'Science-based climate solutions',     impact: 'Climate action globally', ein: '11-6107128' },
     ];
-
-    const INIT_CHARITIES = [
-      { id: 1, name: 'Feeding America',           cat: 'hunger',      emoji: '🍽️',  rating: 4.9, blurb: 'Fighting hunger across the US',       impact: '$1 = 10 meals',           active: true  },
-      { id: 2, name: 'World Wildlife Fund',        cat: 'environment', emoji: '🐼',  rating: 4.8, blurb: 'Protecting wildlife and wild places',   impact: '$5 = 1 acre protected',   active: false },
-      { id: 3, name: "St. Jude Children's",        cat: 'health',      emoji: '❤️',  rating: 4.9, blurb: 'No family pays for cancer treatment',   impact: 'Every child treated free', active: false },
-      { id: 4, name: 'Doctors Without Borders',    cat: 'health',      emoji: '🏥',  rating: 4.9, blurb: 'Emergency medical care worldwide',      impact: 'Reaching 70+ countries',  active: false },
-      { id: 5, name: 'Habitat for Humanity',       cat: 'housing',     emoji: '🏠',  rating: 4.8, blurb: 'Building affordable homes',             impact: '$50 = home foundation',   active: false },
-      { id: 6, name: 'UNICEF',                     cat: 'children',    emoji: '👶',  rating: 4.9, blurb: 'For every child, everywhere',           impact: '$5 = child vaccinated',   active: false },
-      { id: 7, name: 'American Red Cross',          cat: 'disaster',    emoji: '🔴',  rating: 4.7, blurb: 'Immediate emergency disaster relief',   impact: 'Relief in hours',         active: false },
-      { id: 8, name: 'Environmental Defense Fund', cat: 'environment', emoji: '🌱',  rating: 4.8, blurb: 'Science-based climate solutions',       impact: 'Climate action globally', active: false },
-    ];
-
-    const INIT_TXN = [
-      { id:  1, merchant: 'Starbucks',      amount: 6.75,  roundup: 0.25, date: '2026-03-04', cat: 'Food & Drink',  card: '4242', donated: false },
-      { id:  2, merchant: 'Whole Foods',    amount: 47.32, roundup: 0.68, date: '2026-03-04', cat: 'Groceries',     card: '4242', donated: false },
-      { id:  3, merchant: 'Uber',           amount: 12.40, roundup: 0.60, date: '2026-03-03', cat: 'Transport',     card: '8832', donated: false },
-      { id:  4, merchant: 'Netflix',        amount: 15.99, roundup: 0.01, date: '2026-03-03', cat: 'Entertainment', card: '4242', donated: true  },
-      { id:  5, merchant: 'Target',         amount: 83.21, roundup: 0.79, date: '2026-03-02', cat: 'Shopping',      card: '8832', donated: true  },
-      { id:  6, merchant: 'Chipotle',       amount: 13.47, roundup: 0.53, date: '2026-03-02', cat: 'Food & Drink',  card: '4242', donated: true  },
-      { id:  7, merchant: 'Shell',          amount: 58.10, roundup: 0.90, date: '2026-03-01', cat: 'Gas',           card: '8832', donated: true  },
-      { id:  8, merchant: 'Amazon',         amount: 34.99, roundup: 0.01, date: '2026-03-01', cat: 'Shopping',      card: '4242', donated: true  },
-      { id:  9, merchant: 'Planet Fitness', amount: 24.99, roundup: 0.01, date: '2026-02-28', cat: 'Health',        card: '8832', donated: true  },
-      { id: 10, merchant: "Trader Joe's",   amount: 62.18, roundup: 0.82, date: '2026-02-28', cat: 'Groceries',     card: '4242', donated: true  },
-      { id: 11, merchant: 'Spotify',        amount:  9.99, roundup: 0.01, date: '2026-02-27', cat: 'Entertainment', card: '4242', donated: true  },
-      { id: 12, merchant: 'Lyft',           amount: 18.65, roundup: 0.35, date: '2026-02-27', cat: 'Transport',     card: '8832', donated: true  },
-    ];
-
-    const INIT_RECURRING = [
-      { id: 1, charityId: 1, charity: 'Feeding America', amount: 25, freq: 'monthly', next: '2026-04-01', active: true  },
-      { id: 2, charityId: 6, charity: 'UNICEF',           amount: 10, freq: 'monthly', next: '2026-04-15', active: true  },
-    ];
-
-    const CHART_DATA = [28.4, 35.2, 42.1, 38.9, 51.3, 0];
 
     /* ─────────────────────────── ICONS ─────────────────────────── */
-
     const Icon = ({ n, s = 20, cls = '' }) => {
       const paths = {
-        home:     <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
-        card:     <><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></>,
-        list:     <><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></>,
-        heart:    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
-        repeat:   <><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></>,
-        plus:     <><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></>,
-        x:        <><path d="M18 6L6 18"/><path d="M6 6l12 12"/></>,
-        check:    <polyline points="20 6 9 17 4 12"/>,
-        search:   <><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></>,
-        zap:      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
-        trash:    <><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
-        trending: <><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>,
-        dollar:   <><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>,
-        bell:     <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>,
-        chevron:  <path d="M9 18l6-6-6-6"/>,
-        logout:   <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
-        user:     <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
-        eye:      <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
-        eyeoff:   <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>,
-        spark:    <><path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></>,
+        home:    <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
+        card:    <><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></>,
+        list:    <><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></>,
+        heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
+        repeat:  <><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></>,
+        plus:    <><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></>,
+        x:       <><path d="M18 6L6 18"/><path d="M6 6l12 12"/></>,
+        check:   <polyline points="20 6 9 17 4 12"/>,
+        search:  <><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></>,
+        zap:     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
+        trash:   <><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
+        trending:<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>,
+        bell:    <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>,
+        logout:  <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
+        eye:     <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
+        eyeoff:  <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>,
+        spark:   <path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/>,
+        link:    <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>,
       };
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -118,7 +96,6 @@
     };
 
     /* ─────────────────────────── PRIMITIVES ─────────────────────────── */
-
     const Toggle = ({ on, toggle }) => (
       <button onClick={toggle}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${on ? 'bg-violet-500' : 'bg-gray-200'}`}>
@@ -127,8 +104,8 @@
     );
 
     const Badge = ({ children, color = 'violet' }) => {
-      const c = { violet: 'bg-violet-100 text-violet-700', emerald: 'bg-emerald-100 text-emerald-700', amber: 'bg-amber-100 text-amber-700', rose: 'bg-rose-100 text-rose-700' };
-      return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${c[color]}`}>{children}</span>;
+      const c = { violet: 'bg-violet-100 text-violet-700', emerald: 'bg-emerald-100 text-emerald-700', amber: 'bg-amber-100 text-amber-700', rose: 'bg-rose-100 text-rose-700', gray: 'bg-gray-100 text-gray-600' };
+      return <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${c[color]||c.violet}`}>{children}</span>;
     };
 
     const Modal = ({ title, onClose, children }) => (
@@ -168,68 +145,93 @@
         primary: 'bg-violet-500 hover:bg-violet-600 text-white shadow-sm shadow-violet-200',
         ghost:   'border border-gray-200 text-gray-700 hover:bg-gray-50',
         danger:  'text-rose-500 hover:bg-rose-50',
-        dark:    'bg-gray-900 hover:bg-gray-800 text-white',
       };
       return (
         <button onClick={onClick} disabled={disabled}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${v[variant]} ${cls}`}>
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${v[variant]} ${cls}`}>
           {children}
         </button>
       );
     };
 
+    const Spinner = () => (
+      <div className="min-h-screen flex items-center justify-center bg-violet-50">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-violet-500 rounded-2xl flex items-center justify-center mx-auto mb-3 animate-pulse">
+            <Icon n="spark" s={22} cls="text-white" />
+          </div>
+          <p className="text-gray-400 font-medium text-sm">Loading sumthing…</p>
+        </div>
+      </div>
+    );
+
     /* ─────────────────────────── AUTH SCREEN ───────────────────────────
      *
-     *  This is the login / signup screen users see before entering the app.
-     *  It uses Supabase's built-in email/password auth.
+     *  HOW AUTH WORKS:
+     *  1. User fills in email + password and hits "Create account"
+     *  2. supabase.auth.signUp() sends those to Supabase
+     *  3. Supabase creates a user in its auth.users table
+     *  4. Our DB trigger (from schema.sql) auto-creates a row in profiles
+     *  5. Supabase returns a session token, stored in localStorage
+     *  6. Next time user opens the app, getSession() finds that token → auto login
      *
-     *  What happens technically:
-     *  - signUp()   → creates a new user in Supabase Auth, sends confirmation email
-     *  - signIn()   → checks credentials, returns a session token
-     *  - The token is stored automatically in localStorage by the Supabase SDK
-     *  - On reload, Supabase checks for that token and restores the session
+     *  IMPORTANT — email confirmation:
+     *  If signup isn't working, go to Supabase → Authentication → Settings
+     *  and turn OFF "Enable email confirmations" so users can sign in immediately.
      *
      * ─────────────────────────────────────────────────────────────────── */
     const AuthScreen = ({ onAuth }) => {
-      const [mode,     setMode]     = useState('login');   // 'login' | 'signup'
-      const [email,    setEmail]    = useState('');
-      const [password, setPassword] = useState('');
-      const [name,     setName]     = useState('');
-      const [showPw,   setShowPw]   = useState(false);
-      const [loading,  setLoading]  = useState(false);
-      const [err,      setErr]      = useState('');
-      const [msg,      setMsg]      = useState('');
-
-      // isDemoMode is defined at the top of the app
+      const [mode,    setMode]    = useState('login');
+      const [email,   setEmail]   = useState('');
+      const [pw,      setPw]      = useState('');
+      const [name,    setName]    = useState('');
+      const [showPw,  setShowPw]  = useState(false);
+      const [loading, setLoading] = useState(false);
+      const [err,     setErr]     = useState('');
+      const [msg,     setMsg]     = useState('');
 
       const handle = async () => {
         setErr(''); setMsg('');
 
-        // ── DEMO MODE: keys not yet set, let user in with fake session ──
+        // ── DEMO MODE ──
         if (isDemoMode) {
-          const fakeName = name || email.split('@')[0] || 'User';
-          onAuth({ id: 'demo', email: email || 'demo@sumthing.app', user_metadata: { full_name: fakeName } });
+          onAuth({ id: 'demo-user', email: email || 'demo@sumthing.app', user_metadata: { full_name: name || 'Demo User' } });
           return;
         }
 
-        // ── REAL SUPABASE AUTH ──
+        // ── VALIDATION ──
+        if (!email.trim()) return setErr('Please enter your email.');
+        if (pw.length < 6) return setErr('Password must be at least 6 characters.');
+        if (mode === 'signup' && !name.trim()) return setErr('Please enter your name.');
+
         setLoading(true);
         try {
           if (mode === 'signup') {
-            const { error } = await supabase.auth.signUp({
-              email, password,
-              options: { data: { full_name: name } }
+            const { data, error } = await sb.auth.signUp({
+              email: email.trim(),
+              password: pw,
+              options: { data: { full_name: name.trim() } }
             });
             if (error) throw error;
-            setMsg('Check your email to confirm your account, then sign in.');
-            setMode('login');
+            // If email confirmation is OFF, session is returned immediately
+            if (data.session) {
+              onAuth(data.user);
+            } else {
+              setMsg('Account created! Check your email to confirm, then sign in.');
+              setMode('login');
+            }
           } else {
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            const { data, error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pw });
             if (error) throw error;
             onAuth(data.user);
           }
         } catch (e) {
-          setErr(e.message);
+          // Make Supabase error messages friendlier
+          const msg = e.message || '';
+          if (msg.includes('Invalid login')) setErr('Wrong email or password. Try again.');
+          else if (msg.includes('Email not confirmed')) setErr('Please confirm your email first, then sign in.');
+          else if (msg.includes('already registered')) setErr('That email already has an account. Sign in instead.');
+          else setErr(msg || 'Something went wrong. Please try again.');
         } finally {
           setLoading(false);
         }
@@ -238,8 +240,6 @@
       return (
         <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-purple-50 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
-
-            {/* Logo */}
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-violet-500 rounded-3xl shadow-lg shadow-violet-200 mb-4">
                 <Icon n="spark" s={28} cls="text-white" />
@@ -248,20 +248,18 @@
               <p className="text-gray-400 mt-1 font-medium">effortless giving, every purchase</p>
             </div>
 
-            {/* Demo mode notice */}
             {isDemoMode && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 text-sm text-amber-800">
-                <div className="font-bold mb-1">🔧 Demo mode</div>
-                Supabase keys not yet set. You can still explore the full app — just enter any name and click continue.
+                <div className="font-bold mb-1">🔧 Demo mode — Supabase not connected yet</div>
+                Enter anything and tap continue to explore the app.
               </div>
             )}
 
-            {/* Card */}
             <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8">
               <div className="flex gap-1 bg-gray-100 rounded-2xl p-1 mb-6">
                 {['login','signup'].map(m => (
                   <button key={m} onClick={() => { setMode(m); setErr(''); setMsg(''); }}
-                    className={`flex-1 py-2 rounded-xl text-sm font-bold capitalize transition-colors ${mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+                    className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
                     {m === 'login' ? 'Sign In' : 'Sign Up'}
                   </button>
                 ))}
@@ -274,12 +272,14 @@
                   </Field>
                 )}
                 <Field label="Email">
-                  <Input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
+                  <Input type="email" placeholder="you@email.com" value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handle()} />
                 </Field>
                 <Field label="Password">
                   <div className="relative">
-                    <Input type={showPw ? 'text' : 'password'} placeholder="••••••••" value={password}
-                      onChange={e => setPassword(e.target.value)}
+                    <Input type={showPw ? 'text' : 'password'} placeholder="••••••••" value={pw}
+                      onChange={e => setPw(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handle()} />
                     <button onClick={() => setShowPw(!showPw)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1">
@@ -288,31 +288,97 @@
                   </div>
                 </Field>
 
-                {err && <div className="text-sm text-rose-500 font-medium bg-rose-50 rounded-xl px-4 py-3">{err}</div>}
-                {msg && <div className="text-sm text-emerald-600 font-medium bg-emerald-50 rounded-xl px-4 py-3">{msg}</div>}
+                {err && <div className="text-sm text-rose-600 font-medium bg-rose-50 rounded-xl px-4 py-3 flex items-start gap-2">⚠️ {err}</div>}
+                {msg && <div className="text-sm text-emerald-700 font-medium bg-emerald-50 rounded-xl px-4 py-3">✓ {msg}</div>}
 
-                <Btn cls="w-full py-3 text-base" onClick={handle} disabled={loading}>
+                <Btn cls="w-full py-3 text-base mt-2" onClick={handle} disabled={loading}>
                   {loading ? 'Please wait…' : isDemoMode ? 'Continue to app →' : mode === 'login' ? 'Sign in' : 'Create account'}
                 </Btn>
               </div>
             </div>
+            <p className="text-center text-xs text-gray-400 mt-6">Your spare change. Real impact. 💜</p>
+          </div>
+        </div>
+      );
+    };
 
-            <p className="text-center text-xs text-gray-400 mt-6">
-              Your spare change. Real impact. 💜
-            </p>
+    /* ─────────────────────────── ONBOARDING ────────────────────────────
+     *
+     *  Shown to brand new users who have no charity selected yet.
+     *  Three steps: welcome → pick a cause → connect a card (coming soon)
+     *  Once done, isNewUser flips to false and they see the real dashboard.
+     *
+     * ─────────────────────────────────────────────────────────────────── */
+    const Onboarding = ({ user, onComplete }) => {
+      const [step,      setStep]      = useState(0);
+      const [selected,  setSelected]  = useState(null);
+
+      const name = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
+
+      const steps = [
+        // Step 0 — Welcome
+        <div key="welcome" className="text-center space-y-6">
+          <div className="text-6xl">👋</div>
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">Hey {name}, welcome to sumthing!</h2>
+            <p className="text-gray-500 mt-2 leading-relaxed">Every time you buy a coffee, grab groceries, or pay for anything — we round up the change and send it to a cause you care about.</p>
+          </div>
+          <div className="bg-violet-50 rounded-2xl p-4 text-sm text-violet-800 text-left space-y-2">
+            <div className="flex items-center gap-2"><span>☕</span><span>You spend <strong>$4.60</strong> at Starbucks</span></div>
+            <div className="flex items-center gap-2"><span>➕</span><span>sumthing rounds up <strong>$0.40</strong></span></div>
+            <div className="flex items-center gap-2"><span>💜</span><span>That <strong>$0.40</strong> goes to your cause, automatically</span></div>
+          </div>
+          <Btn cls="w-full py-3" onClick={() => setStep(1)}>Let's pick your cause →</Btn>
+        </div>,
+
+        // Step 1 — Pick a charity
+        <div key="charity" className="space-y-4">
+          <div>
+            <h2 className="text-xl font-black text-gray-900">Pick your first cause</h2>
+            <p className="text-gray-400 text-sm mt-1">Your round-ups will go here. You can change this anytime.</p>
+          </div>
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {FEATURED_CHARITIES.map(c => (
+              <button key={c.id} onClick={() => setSelected(c.id)}
+                className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${selected === c.id ? 'border-violet-400 bg-violet-50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
+                <span className="text-2xl">{c.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-gray-900 text-sm">{c.name}</div>
+                  <div className="text-xs text-gray-400 truncate">{c.impact}</div>
+                </div>
+                {selected === c.id && <Icon n="check" s={16} cls="text-violet-500 shrink-0" />}
+              </button>
+            ))}
+          </div>
+          <Btn cls="w-full py-3" disabled={!selected} onClick={() => onComplete(selected)}>
+            Start rounding up →
+          </Btn>
+        </div>
+      ];
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-purple-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md">
+            <div className="flex items-center gap-2 justify-center mb-6">
+              {[0,1].map(i => (
+                <div key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-8 bg-violet-500' : i < step ? 'w-4 bg-violet-300' : 'w-4 bg-gray-200'}`} />
+              ))}
+            </div>
+            <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8">
+              {steps[step]}
+            </div>
           </div>
         </div>
       );
     };
 
     /* ─────────────────────────── STAT CARD ─────────────────────────── */
-
     const Stat = ({ label, value, sub, icon, accent, trend }) => {
       const a = {
-        violet:  { ring: 'ring-violet-100',  bg: 'bg-violet-50',  ic: 'text-violet-500' },
+        violet:  { ring: 'ring-violet-100',  bg: 'bg-violet-50',  ic: 'text-violet-500'  },
         emerald: { ring: 'ring-emerald-100', bg: 'bg-emerald-50', ic: 'text-emerald-500' },
-        amber:   { ring: 'ring-amber-100',   bg: 'bg-amber-50',   ic: 'text-amber-500' },
-        purple:  { ring: 'ring-purple-100',  bg: 'bg-purple-50',  ic: 'text-purple-500' },
+        amber:   { ring: 'ring-amber-100',   bg: 'bg-amber-50',   ic: 'text-amber-500'   },
+        purple:  { ring: 'ring-purple-100',  bg: 'bg-purple-50',  ic: 'text-purple-500'  },
       };
       const c = a[accent] || a.violet;
       return (
@@ -331,12 +397,23 @@
     };
 
     /* ─────────────────────────── BAR CHART ─────────────────────────── */
-
-    const BarChart = ({ liveValue }) => {
-      const raw   = [...CHART_DATA.slice(0, 5), liveValue];
-      const max   = Math.max(...raw, 1);
-      const mos   = ['Oct','Nov','Dec','Jan','Feb','Mar'];
-      const total = raw.reduce((s,v) => s+v, 0);
+    const BarChart = ({ donations }) => {
+      // Build last-6-months buckets from real donation data
+      const now     = new Date();
+      const buckets = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+        return { label: d.toLocaleString('default', { month: 'short' }), value: 0 };
+      });
+      donations.forEach(d => {
+        const dm = new Date(d.donated_at || d.date);
+        const idx = buckets.findIndex((b, i) => {
+          const bd = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+          return dm.getMonth() === bd.getMonth() && dm.getFullYear() === bd.getFullYear();
+        });
+        if (idx >= 0) buckets[idx].value += parseFloat(d.amount || d.roundup || 0);
+      });
+      const max   = Math.max(...buckets.map(b => b.value), 1);
+      const total = buckets.reduce((s, b) => s + b.value, 0);
       return (
         <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-gray-100 h-full">
           <div className="flex items-start justify-between mb-5">
@@ -346,129 +423,65 @@
             </div>
             <div className="text-right">
               <div className="text-lg font-bold text-gray-900">${total.toFixed(2)}</div>
-              <div className="text-xs text-gray-400">lifetime total</div>
+              <div className="text-xs text-gray-400">total donated</div>
             </div>
           </div>
-          <div className="flex items-end gap-1.5 h-28">
-            {raw.map((v, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-                <div className="w-full relative group rounded-t-lg overflow-hidden"
-                  style={{ height: `${Math.max((v / max) * 96, 4)}px`, background: i === 5 ? '#8b5cf6' : '#ede9fe' }}>
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-black transition-opacity" />
-                </div>
-                <span className="text-[10px] text-gray-400 font-medium">{mos[i]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    };
-
-    /* ─────────────────────────── DONATE NOW MODAL ───────────────────────────
-     *
-     *  This lets users immediately donate their pending round-ups.
-     *  In production, this calls Stripe to charge their saved payment method,
-     *  then calls Every.org API to send money to their chosen charity.
-     *
-     *  For now: marks all pending transactions as donated in local state.
-     *  The TODO comment shows exactly where the real API calls go.
-     *
-     * ─────────────────────────────────────────────────────────────────────── */
-    const DonateNowModal = ({ pending, pendingAmt, activeCharity, onConfirm, onClose }) => {
-      const [loading, setLoading] = useState(false);
-      const [done,    setDone]    = useState(false);
-
-      const confirm = async () => {
-        setLoading(true);
-        // TODO (next session): 
-        //   1. Call your Supabase Edge Function → charges Stripe
-        //   2. Stripe webhook fires → calls Every.org with charityEIN + amount
-        //   3. Mark transactions as donated in Supabase DB
-        await new Promise(r => setTimeout(r, 1200)); // simulate async
-        onConfirm();
-        setDone(true);
-        setLoading(false);
-      };
-
-      if (done) return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-8 text-center">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Icon n="check" s={28} cls="text-emerald-500" />
+          {total === 0 ? (
+            <div className="flex items-center justify-center h-28 text-gray-300 text-sm">
+              Your giving history will appear here
             </div>
-            <h2 className="text-xl font-black text-gray-900 mb-2">Donated! 🎉</h2>
-            <p className="text-gray-500 text-sm mb-1">
-              <span className="font-bold text-gray-900">${pendingAmt.toFixed(2)}</span> sent to
-            </p>
-            <p className="text-violet-600 font-bold mb-6">{activeCharity?.name}</p>
-            <p className="text-xs text-gray-400 mb-6">A tax receipt will be emailed to you.</p>
-            <Btn cls="w-full" onClick={onClose}>Done</Btn>
-          </div>
-        </div>
-      );
-
-      return (
-        <Modal title="Donate Round-ups Now" onClose={onClose}>
-          <div className="space-y-5">
-            <div className="bg-violet-50 rounded-2xl p-4 ring-1 ring-violet-100">
-              <div className="text-xs text-violet-500 font-semibold uppercase tracking-wide mb-1">Sending to</div>
-              <div className="font-bold text-gray-900">{activeCharity?.name}</div>
-              <div className="text-sm text-gray-500 mt-0.5">{activeCharity?.blurb}</div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-gray-500">{pending.length} pending transactions:</div>
-              {pending.map(t => (
-                <div key={t.id} className="flex justify-between text-sm py-1 border-b border-gray-50">
-                  <span className="text-gray-600">{t.merchant}</span>
-                  <span className="font-semibold text-violet-600">+${t.roundup.toFixed(2)}</span>
+          ) : (
+            <div className="flex items-end gap-1.5 h-28">
+              {buckets.map((b, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                  <div className="w-full relative group rounded-t-lg overflow-hidden"
+                    style={{ height: `${Math.max((b.value / max) * 96, b.value > 0 ? 6 : 2)}px`, background: i === 5 ? '#8b5cf6' : '#ede9fe' }}>
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-black transition-opacity" />
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-medium">{b.label}</span>
                 </div>
               ))}
             </div>
-
-            <div className="flex justify-between items-center pt-2">
-              <span className="font-bold text-gray-900">Total donation</span>
-              <span className="text-2xl font-black text-violet-600">${pendingAmt.toFixed(2)}</span>
-            </div>
-
-            <div className="flex gap-3">
-              <Btn variant="ghost" cls="flex-1" onClick={onClose}>Cancel</Btn>
-              <Btn cls="flex-1" onClick={confirm} disabled={loading}>
-                {loading ? 'Processing…' : `Donate $${pendingAmt.toFixed(2)}`}
-              </Btn>
-            </div>
-          </div>
-        </Modal>
+          )}
+        </div>
       );
     };
 
-    /* ─────────────────────────── QUICK DONATE MODAL ────────────────────────
-     *
-     *  The "spur of the moment" donate button.
-     *  User picks any amount, picks a charity, hits donate.
-     *  In production: calls Stripe immediately for a one-time charge,
-     *  then Every.org receives the funds for that nonprofit.
-     *
-     * ─────────────────────────────────────────────────────────────────────── */
-    const QuickDonateModal = ({ charities, onClose }) => {
+    /* ─────────────────────────── QUICK DONATE MODAL ─────────────────── */
+    const QuickDonateModal = ({ charities, onClose, onDonated }) => {
       const [amount,    setAmount]    = useState('');
       const [charityId, setCharityId] = useState(charities.find(c=>c.active)?.id || charities[0]?.id);
       const [loading,   setLoading]   = useState(false);
       const [done,      setDone]      = useState(false);
       const [err,       setErr]       = useState('');
       const PRESETS = [5, 10, 25, 50];
-
       const charity = charities.find(c => c.id === charityId) || charities[0];
 
       const confirm = async () => {
         const amt = parseFloat(amount);
         if (!amt || amt < 1) return setErr('Minimum donation is $1');
         setLoading(true);
-        // TODO (next session):
-        //   Call Stripe one-time charge → Every.org disbursement
-        await new Promise(r => setTimeout(r, 1200));
-        setDone(true);
-        setLoading(false);
+        try {
+          if (sb) {
+            const { data: { user } } = await sb.auth.getUser();
+            await sb.from('donations').insert({
+              user_id:       user.id,
+              amount:        amt,
+              donation_type: 'one_time',
+              charity_name:  charity.name,
+              charity_ein:   charity.ein,
+              stripe_status: 'pending', // will be updated when Stripe is wired
+            });
+          }
+          // Simulate processing delay
+          await new Promise(r => setTimeout(r, 900));
+          setDone(true);
+          if (onDonated) onDonated();
+        } catch (e) {
+          setErr('Could not process donation. Please try again.');
+        } finally {
+          setLoading(false);
+        }
       };
 
       if (done) return (
@@ -478,24 +491,22 @@
               <Icon n="heart" s={28} cls="text-emerald-500" />
             </div>
             <h2 className="text-xl font-black text-gray-900 mb-2">Thank you! 💜</h2>
-            <p className="text-gray-500 text-sm mb-1">
-              <span className="font-bold text-gray-900">${parseFloat(amount).toFixed(2)}</span> donated to
-            </p>
-            <p className="text-violet-600 font-bold mb-6">{charity?.name}</p>
+            <p className="text-gray-500 text-sm mb-1"><span className="font-bold text-gray-900">${parseFloat(amount).toFixed(2)}</span> donated to</p>
+            <p className="text-violet-600 font-bold mb-2">{charity?.name}</p>
+            <p className="text-xs text-gray-400 mb-6">A tax receipt will be emailed to you once payment processing is connected.</p>
             <Btn cls="w-full" onClick={onClose}>Done</Btn>
           </div>
         </div>
       );
 
       return (
-        <Modal title="Quick Donate 💜" onClose={onClose}>
+        <Modal title="Give Now 💜" onClose={onClose}>
           <div className="space-y-5">
             <Field label="Choose charity">
               <Select value={charityId} onChange={e => setCharityId(parseInt(e.target.value))}>
                 {charities.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
               </Select>
             </Field>
-
             <Field label="Amount">
               <div className="grid grid-cols-4 gap-2 mb-2">
                 {PRESETS.map(p => (
@@ -507,13 +518,10 @@
               </div>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
-                <Input type="number" placeholder="Other amount" className="pl-8"
-                  value={amount} onChange={e => setAmount(e.target.value)} />
+                <Input type="number" placeholder="Other amount" className="pl-8" value={amount} onChange={e => setAmount(e.target.value)} />
               </div>
             </Field>
-
-            {err && <div className="text-sm text-rose-500 font-medium">{err}</div>}
-
+            {err && <div className="text-sm text-rose-500">{err}</div>}
             <div className="flex gap-3">
               <Btn variant="ghost" cls="flex-1" onClick={onClose}>Cancel</Btn>
               <Btn cls="flex-1" onClick={confirm} disabled={loading || !amount}>
@@ -526,31 +534,30 @@
     };
 
     /* ─────────────────────────── DASHBOARD ─────────────────────────── */
-
-    const Dashboard = ({ txns, setTxns, charities, recurring, onNav, user, onQuickDonate }) => {
-      const [showDonate, setShowDonate] = useState(false);
-
+    const Dashboard = ({ user, charities, txns, recurring, donations, onNav, onQuickDonate, onReload }) => {
       const activeCharity  = charities.find(c => c.active);
       const pending        = txns.filter(t => !t.donated);
       const pendingAmt     = pending.reduce((s, t) => s + t.roundup, 0);
-      const donatedAmt     = txns.filter(t => t.donated).reduce((s, t) => s + t.roundup, 0);
+      const donatedAmt     = donations.reduce((s, d) => s + parseFloat(d.amount || 0), 0);
       const recurringTotal = recurring.filter(r => r.active).reduce((s, r) => s + r.amount, 0);
-      const liveMonth      = donatedAmt + recurringTotal;
 
-      const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
-      const initials    = displayName.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+      const displayName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'there';
+      const initials    = (user?.user_metadata?.full_name || user?.email || 'U').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
-      const handleConfirmDonate = () => {
-        setTxns(txns.map(t => ({ ...t, donated: true })));
-        setShowDonate(false);
-      };
+      // Greeting based on time of day
+      const hour     = new Date().getHours();
+      const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+      // Next batch date = 1st of next month
+      const nextBatch = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
       return (
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400 font-medium">Good morning</p>
+              <p className="text-sm text-gray-400 font-medium">{greeting}</p>
               <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">{displayName} 👋</h1>
             </div>
             <div className="flex items-center gap-2">
@@ -564,39 +571,54 @@
             </div>
           </div>
 
-          {/* Pending Banner */}
+          {/* Monthly accumulation card — calm, no action required */}
           {pendingAmt > 0 && (
-            <div className="bg-gradient-to-r from-violet-500 to-purple-500 rounded-2xl p-5 flex items-center justify-between text-white shadow-lg shadow-violet-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Icon n="zap" s={18} />
+            <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-violet-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+                    <Icon n="zap" s={18} cls="text-violet-500" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-gray-900">
+                      ${pendingAmt.toFixed(2)} accumulating for {activeCharity?.name || 'your cause'}
+                    </div>
+                    <div className="text-gray-400 text-sm">
+                      {pending.length} transaction{pending.length !== 1 ? 's' : ''} this month · processes automatically {nextBatch}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-bold">${pendingAmt.toFixed(2)} in round-ups ready</div>
-                  <div className="text-violet-200 text-sm">{pending.length} transactions tracked</div>
+                <div className="shrink-0 text-xs font-semibold text-violet-400 bg-violet-50 px-3 py-1.5 rounded-full">
+                  Auto ✓
                 </div>
               </div>
-              <button onClick={() => setShowDonate(true)}
-                className="bg-white text-violet-600 font-bold px-4 py-2 rounded-xl text-sm hover:bg-violet-50 transition-colors whitespace-nowrap">
-                Donate now →
-              </button>
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+                  <span>This month</span>
+                  <span>${pendingAmt.toFixed(2)} accumulated</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                  <div className="bg-violet-400 h-1.5 rounded-full transition-all"
+                    style={{ width: `${Math.min((pendingAmt / 5) * 100, 100)}%` }} />
+                </div>
+              </div>
             </div>
           )}
 
           {/* Stats */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-            <Stat label="Donated This Month" value={`$${liveMonth.toFixed(2)}`}          icon="heart"    accent="violet"  trend="+12%" />
-            <Stat label="Pending Round-ups"  value={`$${pendingAmt.toFixed(2)}`}          icon="zap"      accent="amber"   sub={`${pending.length} txns`} />
-            <Stat label="Monthly Recurring"  value={`$${recurringTotal}/mo`}              icon="repeat"   accent="emerald" sub={`${recurring.filter(r=>r.active).length} active`} />
-            <Stat label="Lifetime Given"     value={`$${(284.32 + liveMonth).toFixed(2)}`} icon="trending" accent="purple" />
+            <Stat label="Total Donated"      value={`$${donatedAmt.toFixed(2)}`}    icon="heart"    accent="violet"  />
+            <Stat label="Accumulating"       value={`$${pendingAmt.toFixed(2)}`}    icon="zap"      accent="amber"   sub={`${pending.length} txns`} />
+            <Stat label="Monthly Recurring"  value={`$${recurringTotal}/mo`}        icon="repeat"   accent="emerald" sub={`${recurring.filter(r=>r.active).length} active`} />
+            <Stat label="Donations Made"     value={donations.length}               icon="trending" accent="purple"  />
           </div>
 
           {/* Chart + Active Charity */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
-              <BarChart liveValue={liveMonth} />
+              <BarChart donations={donations} />
             </div>
-            {activeCharity && (
+            {activeCharity ? (
               <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-gray-100 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-gray-900">Your Cause</h3>
@@ -609,63 +631,67 @@
                   <div className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">Your impact</div>
                   <div className="text-sm font-bold text-emerald-800">{activeCharity.impact}</div>
                 </div>
-                <button onClick={() => onNav('charities')}
-                  className="mt-3 w-full text-center text-sm text-violet-500 hover:text-violet-700 font-semibold py-1 transition-colors">
+                <button onClick={() => onNav('charities')} className="mt-3 w-full text-center text-sm text-violet-500 hover:text-violet-700 font-semibold py-1 transition-colors">
                   Change cause →
                 </button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl p-5 shadow-sm ring-1 ring-gray-100 flex flex-col items-center justify-center text-center gap-3">
+                <div className="text-4xl">💜</div>
+                <div className="font-bold text-gray-900">No cause selected</div>
+                <div className="text-sm text-gray-400">Pick a charity to direct your round-ups to</div>
+                <Btn onClick={() => onNav('charities')} cls="mt-1">Choose a cause</Btn>
               </div>
             )}
           </div>
 
-          {/* Recent Transactions */}
+          {/* Recent donations — real data, empty state if none */}
           <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h3 className="font-bold text-gray-900">Recent Transactions</h3>
               <button onClick={() => onNav('transactions')} className="text-sm text-violet-500 hover:text-violet-700 font-semibold transition-colors">See all →</button>
             </div>
-            {txns.slice(0, 6).map(t => (
-              <div key={t.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/60 transition-colors border-b border-gray-50 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
-                    {t.merchant[0]}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">{t.merchant}</div>
-                    <div className="text-xs text-gray-400">{t.cat} · {t.date}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-gray-900">${t.amount.toFixed(2)}</div>
-                    <div className={`text-xs font-semibold ${t.donated ? 'text-emerald-500' : 'text-amber-500'}`}>+${t.roundup.toFixed(2)}</div>
-                  </div>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${t.donated ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-                    {t.donated ? <Icon n="check" s={12} cls="text-emerald-600" /> : <div className="w-2 h-2 rounded-full bg-amber-400" />}
-                  </div>
-                </div>
+            {txns.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="text-3xl mb-3">🏦</div>
+                <div className="font-semibold text-gray-500 text-sm">No transactions yet</div>
+                <div className="text-xs text-gray-400 mt-1">Connect a bank account to start tracking round-ups</div>
+                <button onClick={() => onNav('cards')} className="mt-4 text-sm text-violet-500 font-semibold hover:text-violet-700">Connect a card →</button>
               </div>
-            ))}
+            ) : (
+              txns.slice(0, 6).map(t => (
+                <div key={t.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/60 transition-colors border-b border-gray-50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                      {t.merchant[0]}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">{t.merchant}</div>
+                      <div className="text-xs text-gray-400">{t.cat} · {t.date}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-gray-900">${t.amount.toFixed(2)}</div>
+                      <div className={`text-xs font-semibold ${t.donated ? 'text-emerald-500' : 'text-amber-500'}`}>+${t.roundup.toFixed(2)}</div>
+                    </div>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${t.donated ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                      {t.donated ? <Icon n="check" s={12} cls="text-emerald-600" /> : <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-
-          {showDonate && (
-            <DonateNowModal
-              pending={pending}
-              pendingAmt={pendingAmt}
-              activeCharity={activeCharity}
-              onConfirm={handleConfirmDonate}
-              onClose={() => setShowDonate(false)}
-            />
-          )}
         </div>
       );
     };
 
     /* ─────────────────────────── CARDS VIEW ─────────────────────────── */
-
     const CardView = ({ cards, setCards }) => {
       const [showAdd, setShowAdd] = useState(false);
-      const [form, setForm]       = useState({ name: '', last4: '', type: 'Visa' });
-      const [err, setErr]         = useState('');
+      const [form,    setForm]    = useState({ name: '', last4: '', type: 'Visa' });
+      const [err,     setErr]     = useState('');
 
       const toggleRoundup = id => setCards(cards.map(c => c.id === id ? { ...c, roundups: !c.roundups } : c));
       const remove        = id => setCards(cards.filter(c => c.id !== id));
@@ -675,9 +701,7 @@
         if (!/^\d{4}$/.test(form.last4)) return setErr('Enter exactly 4 digits.');
         const colors = ['#8b5cf6','#7C3AED','#0891B2','#059669','#DB2777'];
         setCards([...cards, { id: Date.now(), type: form.type, last4: form.last4, name: form.name, color: colors[cards.length % colors.length], roundups: true }]);
-        setShowAdd(false);
-        setForm({ name: '', last4: '', type: 'Visa' });
-        setErr('');
+        setShowAdd(false); setForm({ name: '', last4: '', type: 'Visa' }); setErr('');
       };
 
       return (
@@ -687,9 +711,15 @@
               <h1 className="text-3xl font-extrabold text-gray-900">Connected Cards</h1>
               <p className="text-gray-400 mt-1 text-sm">Manage which cards track round-ups</p>
             </div>
-            <Btn onClick={() => setShowAdd(true)}>
-              <Icon n="plus" s={16} /> Add Card
-            </Btn>
+            <Btn onClick={() => setShowAdd(true)}><Icon n="plus" s={16} /> Add Card</Btn>
+          </div>
+
+          {/* Plaid coming soon notice */}
+          <div className="bg-blue-50 rounded-2xl p-4 ring-1 ring-blue-100 flex items-start gap-3">
+            <Icon n="link" s={18} cls="text-blue-500 mt-0.5 shrink-0" />
+            <div className="text-sm text-blue-800">
+              <span className="font-bold">Automatic bank sync coming soon.</span> We're connecting Plaid so your transactions import automatically. For now, cards are tracked manually.
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -702,32 +732,24 @@
                   </div>
                   <div className="font-mono text-lg tracking-[0.25em] mb-2">•••• •••• •••• {card.last4}</div>
                   <div className="text-white/60 text-sm">{card.name}</div>
-                  {card.roundups && (
-                    <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                      TRACKING
-                    </div>
-                  )}
+                  {card.roundups && <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-full">TRACKING</div>}
                 </div>
                 <div className="px-5 py-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <div className="font-semibold text-gray-900 text-sm">Round-up Donations</div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        {card.roundups ? 'On — spare change goes to charity' : 'Off — not tracking'}
-                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">{card.roundups ? 'On — spare change goes to charity' : 'Off — not tracking'}</div>
                     </div>
                     <Toggle on={card.roundups} toggle={() => toggleRoundup(card.id)} />
                   </div>
                   <div className="flex gap-2 pt-3 border-t border-gray-100">
-                    <button onClick={() => remove(card.id)}
-                      className="flex items-center gap-1.5 text-rose-400 hover:text-rose-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors">
+                    <button onClick={() => remove(card.id)} className="flex items-center gap-1.5 text-rose-400 hover:text-rose-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors">
                       <Icon n="trash" s={12} /> Remove
                     </button>
                   </div>
                 </div>
               </div>
             ))}
-
             <button onClick={() => setShowAdd(true)}
               className="border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-gray-400 hover:border-violet-300 hover:text-violet-400 transition-colors group">
               <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-violet-50 flex items-center justify-center transition-colors">
@@ -740,12 +762,8 @@
           {showAdd && (
             <Modal title="Connect a Card" onClose={() => { setShowAdd(false); setErr(''); }}>
               <div className="space-y-4">
-                <Field label="Card Nickname">
-                  <Input placeholder="e.g. Chase Checking" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-                </Field>
-                <Field label="Last 4 Digits">
-                  <Input placeholder="1234" maxLength={4} value={form.last4} onChange={e => setForm({...form, last4: e.target.value.replace(/\D/g,'')})} />
-                </Field>
+                <Field label="Card Nickname"><Input placeholder="e.g. Chase Checking" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></Field>
+                <Field label="Last 4 Digits"><Input placeholder="1234" maxLength={4} value={form.last4} onChange={e => setForm({...form, last4: e.target.value.replace(/\D/g,'')})} /></Field>
                 <Field label="Card Type">
                   <Select value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
                     {['Visa','Mastercard','Amex','Discover'].map(t => <option key={t}>{t}</option>)}
@@ -754,7 +772,7 @@
                 {err && <div className="text-sm text-rose-500 font-medium">{err}</div>}
                 <div className="flex items-start gap-2.5 bg-violet-50 rounded-xl p-3.5 text-sm text-violet-700">
                   <Icon n="bell" s={16} cls="mt-0.5 shrink-0 text-violet-500" />
-                  <span>We use read-only bank connections. We never store full card numbers or initiate charges without your approval.</span>
+                  <span>We use read-only bank connections. We never store full card numbers or charge without your approval.</span>
                 </div>
                 <div className="flex gap-3 pt-1">
                   <Btn variant="ghost" cls="flex-1" onClick={() => { setShowAdd(false); setErr(''); }}>Cancel</Btn>
@@ -768,7 +786,6 @@
     };
 
     /* ─────────────────────────── TRANSACTIONS ─────────────────────────── */
-
     const TxnView = ({ txns }) => {
       const [filter, setFilter] = useState('all');
       const list           = txns.filter(t => filter === 'all' ? true : filter === 'pending' ? !t.donated : t.donated);
@@ -781,12 +798,11 @@
             <h1 className="text-3xl font-extrabold text-gray-900">Transactions</h1>
             <p className="text-gray-400 mt-1 text-sm">Every purchase rounds up for good</p>
           </div>
-
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: 'Transactions', value: txns.length,                       color: 'text-gray-900' },
-              { label: 'Donated',      value: `$${donatedRoundup.toFixed(2)}`,   color: 'text-emerald-600' },
-              { label: 'Pending',      value: `$${pending.toFixed(2)}`,          color: 'text-amber-500' },
+              { label: 'Transactions', value: txns.length,                     color: 'text-gray-900'    },
+              { label: 'Donated',      value: `$${donatedRoundup.toFixed(2)}`, color: 'text-emerald-600' },
+              { label: 'Accumulating', value: `$${pending.toFixed(2)}`,        color: 'text-amber-500'   },
             ].map(s => (
               <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm ring-1 ring-gray-100 text-center">
                 <div className={`text-xl font-extrabold ${s.color}`}>{s.value}</div>
@@ -794,7 +810,6 @@
               </div>
             ))}
           </div>
-
           <div className="flex gap-2">
             {['all','pending','donated'].map(f => (
               <button key={f} onClick={() => setFilter(f)}
@@ -803,49 +818,55 @@
               </button>
             ))}
           </div>
-
-          <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
-            {list.map((t, i) => (
-              <div key={t.id} className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors ${i !== list.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
-                  {t.merchant[0]}
+          {txns.length === 0 ? (
+            <div className="bg-white rounded-2xl p-12 text-center shadow-sm ring-1 ring-gray-100">
+              <div className="text-4xl mb-3">🏦</div>
+              <div className="font-bold text-gray-500">No transactions yet</div>
+              <div className="text-sm text-gray-400 mt-1">Connect a bank account to start seeing round-ups here</div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 overflow-hidden">
+              {list.map((t, i) => (
+                <div key={t.id} className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors ${i !== list.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                  <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">{t.merchant[0]}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900">{t.merchant}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{t.cat} · ···· {t.card} · {t.date}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-semibold text-gray-900 text-sm">${t.amount.toFixed(2)}</div>
+                    <div className="text-xs text-gray-400">spent</div>
+                  </div>
+                  <div className="text-right shrink-0 w-16">
+                    <div className={`font-bold text-sm ${t.donated ? 'text-emerald-500' : 'text-amber-500'}`}>+${t.roundup.toFixed(2)}</div>
+                    <div className={`text-xs ${t.donated ? 'text-emerald-400' : 'text-amber-400'}`}>{t.donated ? 'donated' : 'pending'}</div>
+                  </div>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${t.donated ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                    {t.donated ? <Icon n="check" s={13} cls="text-emerald-600" /> : <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-gray-900">{t.merchant}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{t.cat} · ···· {t.card} · {t.date}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-semibold text-gray-900 text-sm">${t.amount.toFixed(2)}</div>
-                  <div className="text-xs text-gray-400">spent</div>
-                </div>
-                <div className="text-right shrink-0 w-16">
-                  <div className={`font-bold text-sm ${t.donated ? 'text-emerald-500' : 'text-amber-500'}`}>+${t.roundup.toFixed(2)}</div>
-                  <div className={`text-xs ${t.donated ? 'text-emerald-400' : 'text-amber-400'}`}>{t.donated ? 'donated' : 'pending'}</div>
-                </div>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${t.donated ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-                  {t.donated ? <Icon n="check" s={13} cls="text-emerald-600" /> : <div className="w-2 h-2 rounded-full bg-amber-400" />}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     };
 
     /* ─────────────────────────── CHARITIES ─────────────────────────── */
-
     const CharityView = ({ charities, setCharities }) => {
       const [q,   setQ]   = useState('');
       const [cat, setCat] = useState('all');
       const CATS = ['all','hunger','environment','health','housing','children','disaster'];
-      const list = charities.filter(c => {
-        const matchQ   = c.name.toLowerCase().includes(q.toLowerCase()) || c.blurb.toLowerCase().includes(q.toLowerCase());
-        const matchCat = cat === 'all' || c.cat === cat;
-        return matchQ && matchCat;
-      });
-
-      const select = id => setCharities(charities.map(c => ({ ...c, active: c.id === id })));
+      const list   = charities.filter(c => (c.name.toLowerCase().includes(q.toLowerCase()) || c.blurb.toLowerCase().includes(q.toLowerCase())) && (cat === 'all' || c.cat === cat));
       const active = charities.find(c => c.active);
+      const select = async (id) => {
+        setCharities(charities.map(c => ({ ...c, active: c.id === id })));
+        if (sb) {
+          const { data: { user } } = await sb.auth.getUser();
+          // Upsert the user's active charity selection
+          await sb.from('user_charities').upsert({ user_id: user.id, charity_id: id, is_active: true }, { onConflict: 'user_id' });
+        }
+      };
 
       return (
         <div className="space-y-6">
@@ -853,7 +874,6 @@
             <h1 className="text-3xl font-extrabold text-gray-900">Choose Your Cause</h1>
             <p className="text-gray-400 mt-1 text-sm">Your round-ups and donations go here</p>
           </div>
-
           {active && (
             <div className="bg-gradient-to-r from-violet-500 to-purple-500 rounded-2xl p-5 text-white flex items-center gap-4 shadow-lg shadow-violet-200">
               <div className="text-3xl">{active.emoji}</div>
@@ -864,13 +884,11 @@
               </div>
             </div>
           )}
-
           <div className="relative">
             <Icon n="search" s={17} cls="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input placeholder="Search charities…" value={q} onChange={e => setQ(e.target.value)}
               className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl ring-1 ring-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-400 text-sm placeholder-gray-400" />
           </div>
-
           <div className="flex gap-2 overflow-x-auto hide-scroll pb-1">
             {CATS.map(c => (
               <button key={c} onClick={() => setCat(c)}
@@ -879,7 +897,6 @@
               </button>
             ))}
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {list.map(c => (
               <div key={c.id} className={`bg-white rounded-2xl p-5 shadow-sm ring-2 transition-all ${c.active ? 'ring-violet-400 shadow-violet-100' : 'ring-gray-100 hover:ring-gray-200'}`}>
@@ -909,28 +926,23 @@
     };
 
     /* ─────────────────────────── RECURRING ─────────────────────────── */
-
     const RecurringView = ({ recurring, setRecurring, charities }) => {
       const [showAdd, setShowAdd] = useState(false);
-      const [form, setForm]       = useState({ charityId: '1', amount: '', freq: 'monthly' });
-      const [err, setErr]         = useState('');
+      const [form,    setForm]    = useState({ charityId: '1', amount: '', freq: 'monthly' });
+      const [err,     setErr]     = useState('');
 
-      const total   = recurring.filter(r => r.active).reduce((s,r) => s + r.amount, 0);
-      const toggle  = id => setRecurring(recurring.map(r => r.id === id ? { ...r, active: !r.active } : r));
-      const remove  = id => setRecurring(recurring.filter(r => r.id !== id));
+      const total     = recurring.filter(r => r.active).reduce((s,r) => s + r.amount, 0);
+      const toggle    = id => setRecurring(recurring.map(r => r.id === id ? { ...r, active: !r.active } : r));
+      const remove    = id => setRecurring(recurring.filter(r => r.id !== id));
       const freqLabel = f => ({ weekly: '/wk', monthly: '/mo', yearly: '/yr' })[f] || '/mo';
 
       const handleAdd = () => {
         const amt = parseFloat(form.amount);
         if (!amt || amt <= 0) return setErr('Enter a valid amount.');
         const ch = charities.find(c => c.id === parseInt(form.charityId)) || charities[0];
-        setRecurring([...recurring, {
-          id: Date.now(), charityId: ch.id, charity: ch.name,
-          amount: amt, freq: form.freq, next: '2026-04-01', active: true,
-        }]);
-        setShowAdd(false);
-        setForm({ charityId: '1', amount: '', freq: 'monthly' });
-        setErr('');
+        const next = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split('T')[0];
+        setRecurring([...recurring, { id: Date.now(), charityId: ch.id, charity: ch.name, amount: amt, freq: form.freq, next, active: true }]);
+        setShowAdd(false); setForm({ charityId: '1', amount: '', freq: 'monthly' }); setErr('');
       };
 
       return (
@@ -940,9 +952,7 @@
               <h1 className="text-3xl font-extrabold text-gray-900">Recurring</h1>
               <p className="text-gray-400 mt-1 text-sm">Automated, effortless giving</p>
             </div>
-            <Btn onClick={() => setShowAdd(true)}>
-              <Icon n="plus" s={16} /> New
-            </Btn>
+            <Btn onClick={() => setShowAdd(true)}><Icon n="plus" s={16} /> New</Btn>
           </div>
 
           <div className="bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-600 rounded-2xl p-6 text-white shadow-xl shadow-violet-200">
@@ -955,7 +965,14 @@
           </div>
 
           <div className="space-y-3">
-            {recurring.map(r => (
+            {recurring.length === 0 ? (
+              <div className="text-center py-16 bg-white rounded-2xl ring-1 ring-gray-100">
+                <Icon n="repeat" s={44} cls="mx-auto mb-4 text-gray-200" />
+                <div className="font-bold text-gray-500">No recurring donations yet</div>
+                <div className="text-sm text-gray-400 mt-1">Set one up to give automatically every month</div>
+                <button onClick={() => setShowAdd(true)} className="mt-4 text-sm text-violet-500 font-semibold hover:text-violet-700">Set one up →</button>
+              </div>
+            ) : recurring.map(r => (
               <div key={r.id} className={`bg-white rounded-2xl p-5 shadow-sm ring-1 transition-all ${r.active ? 'ring-gray-100' : 'ring-gray-100 opacity-60'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -974,21 +991,12 @@
                   </div>
                 </div>
                 <div className="pt-3 mt-3 border-t border-gray-50 flex gap-2">
-                  <button onClick={() => remove(r.id)}
-                    className="flex items-center gap-1.5 text-rose-400 hover:text-rose-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors">
+                  <button onClick={() => remove(r.id)} className="flex items-center gap-1.5 text-rose-400 hover:text-rose-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors">
                     <Icon n="trash" s={12} /> Remove
                   </button>
                 </div>
               </div>
             ))}
-
-            {recurring.length === 0 && (
-              <div className="text-center py-16 text-gray-300">
-                <Icon n="repeat" s={44} cls="mx-auto mb-4" />
-                <div className="font-bold text-gray-500">No recurring donations</div>
-                <div className="text-sm text-gray-400 mt-1">Set one up to give automatically every month</div>
-              </div>
-            )}
           </div>
 
           {showAdd && (
@@ -1002,8 +1010,7 @@
                 <Field label="Amount">
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
-                    <Input type="number" placeholder="0.00" className="pl-8"
-                      value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
+                    <Input type="number" placeholder="0.00" className="pl-8" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
                   </div>
                 </Field>
                 <Field label="Frequency">
@@ -1029,7 +1036,6 @@
     };
 
     /* ─────────────────────────── NAV ─────────────────────────── */
-
     const NAV = [
       { id: 'dashboard',    label: 'Home',      icon: 'home'   },
       { id: 'cards',        label: 'Cards',     icon: 'card'   },
@@ -1065,8 +1071,7 @@
               <div className="text-xs text-gray-400 truncate">{user?.email}</div>
             </div>
           </div>
-          <button onClick={onSignOut}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+          <button onClick={onSignOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
             <Icon n="logout" s={15} /> Sign out
           </button>
         </div>
@@ -1085,75 +1090,119 @@
       </nav>
     );
 
-    /* ─────────────────────────── APP ─────────────────────────── */
-
+    /* ─────────────────────────── APP ────────────────────────────────────
+     *
+     *  STATE FLOW:
+     *  1. authReady = false → show spinner (checking for saved session)
+     *  2. authReady = true, user = null → show AuthScreen (login/signup)
+     *  3. authReady = true, user exists, isNewUser = true → show Onboarding
+     *  4. authReady = true, user exists, isNewUser = false → show main app
+     *
+     *  DATA LOADING:
+     *  When user logs in, loadUserData() fetches their real data from Supabase.
+     *  If Supabase isn't connected (isDemoMode), everything stays at empty arrays
+     *  so new users see the correct empty states instead of fake data.
+     *
+     * ─────────────────────────────────────────────────────────────────── */
     const App = () => {
-      const [user,      setUser]      = useState(null);
-      const [authReady, setAuthReady] = useState(false);
-      const [view,      setView]      = useState('dashboard');
-      const [cards,     setCards]     = useState(INIT_CARDS);
-      const [charities, setCharities] = useState(INIT_CHARITIES);
-      const [txns,      setTxns]      = useState(INIT_TXN);
-      const [recurring, setRecurring] = useState(INIT_RECURRING);
-      const [showQuickDonate, setShowQuickDonate] = useState(false);
+      const [user,       setUser]       = useState(null);
+      const [authReady,  setAuthReady]  = useState(false);
+      const [isNewUser,  setIsNewUser]  = useState(false);
+      const [view,       setView]       = useState('dashboard');
+      const [cards,      setCards]      = useState([]);
+      const [charities,  setCharities]  = useState(FEATURED_CHARITIES.map((c,i) => ({ ...c, active: i === 0 })));
+      const [txns,       setTxns]       = useState([]);
+      const [recurring,  setRecurring]  = useState([]);
+      const [donations,  setDonations]  = useState([]);
+      const [showQuick,  setShowQuick]  = useState(false);
+      const [loading,    setLoading]    = useState(false);
 
-      /* ── On load: check if user already has a Supabase session ──
-       *
-       *  When a user signs in, Supabase stores a token in localStorage.
-       *  On the next page load, getSession() finds that token and
-       *  restores the session automatically — so the user stays logged in.
-       *  onAuthStateChange() listens for login/logout events going forward.
-       *
-       */
-      useEffect(() => {
-        if (!supabase) {
-          setAuthReady(true); // demo mode — skip real auth check
-          return;
+      /* ── Load user's real data from Supabase ── */
+      const loadUserData = useCallback(async (userId) => {
+        if (!sb) return; // demo mode — keep empty arrays
+        setLoading(true);
+        try {
+          const [cardsRes, txnsRes, recurRes, donRes, charRes] = await Promise.all([
+            sb.from('linked_cards').select('*').eq('user_id', userId),
+            sb.from('transactions').select('*').eq('user_id', userId).order('txn_date', { ascending: false }).limit(50),
+            sb.from('recurring_donations').select('*, charities(name, emoji)').eq('user_id', userId),
+            sb.from('donations').select('*').eq('user_id', userId).order('donated_at', { ascending: false }),
+            sb.from('user_charities').select('charity_id, is_active').eq('user_id', userId),
+          ]);
+
+          if (cardsRes.data?.length)   setCards(cardsRes.data.map(c => ({ ...c, roundups: c.roundups_enabled })));
+          if (txnsRes.data?.length)    setTxns(txnsRes.data.map(t => ({ ...t, roundup: parseFloat(t.roundup_amount), merchant: t.merchant, donated: t.status === 'donated', cat: t.category || 'Other', card: t.plaid_account_id?.slice(-4) || '????', date: t.txn_date })));
+          if (recurRes.data?.length)   setRecurring(recurRes.data.map(r => ({ ...r, charity: r.charities?.name || r.charity_name, amount: parseFloat(r.amount), freq: r.frequency, next: r.next_charge_date, active: r.is_active })));
+          if (donRes.data?.length)     setDonations(donRes.data);
+          if (charRes.data?.length) {
+            const activeId = charRes.data.find(c => c.is_active)?.charity_id;
+            if (activeId) setCharities(FEATURED_CHARITIES.map(c => ({ ...c, active: c.ein === activeId || c.id === activeId })));
+          }
+
+          // New user = no data at all
+          const hasData = cardsRes.data?.length || txnsRes.data?.length || recurRes.data?.length;
+          if (!hasData) setIsNewUser(true);
+        } catch (e) {
+          console.error('Error loading user data:', e);
+        } finally {
+          setLoading(false);
         }
-        supabase.auth.getSession().then(({ data }) => {
-          setUser(data.session?.user || null);
+      }, []);
+
+      /* ── Check for saved session on load ── */
+      useEffect(() => {
+        if (!sb) { setAuthReady(true); return; }
+        sb.auth.getSession().then(({ data }) => {
+          if (data.session?.user) {
+            setUser(data.session.user);
+            loadUserData(data.session.user.id);
+          }
           setAuthReady(true);
         });
-        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
           setUser(session?.user || null);
+          if (session?.user) loadUserData(session.user.id);
         });
         return () => listener.subscription.unsubscribe();
       }, []);
 
       const signOut = async () => {
-        if (supabase) await supabase.auth.signOut();
-        setUser(null);
+        if (sb) await sb.auth.signOut();
+        setUser(null); setCards([]); setTxns([]); setRecurring([]); setDonations([]);
+        setIsNewUser(false); setView('dashboard');
       };
 
-      // Show nothing while we check for an existing session
-      if (!authReady) return (
-        <div className="min-h-screen flex items-center justify-center bg-violet-50">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-violet-500 rounded-2xl flex items-center justify-center mx-auto mb-3 animate-pulse">
-              <Icon n="spark" s={22} cls="text-white" />
-            </div>
-            <p className="text-gray-400 font-medium text-sm">Loading sumthing…</p>
-          </div>
-        </div>
-      );
+      const handleOnboardingComplete = async (charityId) => {
+        const ch = FEATURED_CHARITIES.find(c => c.id === charityId);
+        setCharities(FEATURED_CHARITIES.map(c => ({ ...c, active: c.id === charityId })));
+        setIsNewUser(false);
+        if (sb && ch) {
+          const { data: { user: u } } = await sb.auth.getUser();
+          await sb.from('user_charities').upsert({ user_id: u.id, charity_id: charityId, is_active: true }, { onConflict: 'user_id' });
+        }
+      };
 
-      // Not logged in → show auth screen
-      if (!user) return <AuthScreen onAuth={setUser} />;
+      if (!authReady) return <Spinner />;
+      if (!user)      return <AuthScreen onAuth={(u) => { setUser(u); if (sb) loadUserData(u.id); else setIsNewUser(true); }} />;
+      if (isNewUser)  return <Onboarding user={user} onComplete={handleOnboardingComplete} />;
 
-      // Logged in → show the app
       return (
         <div className="flex min-h-screen bg-slate-50">
           <Sidebar active={view} setActive={setView} user={user} onSignOut={signOut} />
           <main className="flex-1 p-5 sm:p-8 pb-24 md:pb-8 max-w-4xl mx-auto w-full">
-            {view === 'dashboard'    && <Dashboard    txns={txns} setTxns={setTxns} charities={charities} recurring={recurring} onNav={setView} user={user} onQuickDonate={() => setShowQuickDonate(true)} />}
-            {view === 'cards'        && <CardView     cards={cards} setCards={setCards} />}
-            {view === 'transactions' && <TxnView      txns={txns} />}
-            {view === 'charities'    && <CharityView  charities={charities} setCharities={setCharities} />}
+            {view === 'dashboard'    && <Dashboard user={user} charities={charities} txns={txns} recurring={recurring} donations={donations} onNav={setView} onQuickDonate={() => setShowQuick(true)} />}
+            {view === 'cards'        && <CardView cards={cards} setCards={setCards} />}
+            {view === 'transactions' && <TxnView txns={txns} />}
+            {view === 'charities'    && <CharityView charities={charities} setCharities={setCharities} />}
             {view === 'recurring'    && <RecurringView recurring={recurring} setRecurring={setRecurring} charities={charities} />}
           </main>
           <BottomNav active={view} setActive={setView} />
-          {showQuickDonate && (
-            <QuickDonateModal charities={charities} onClose={() => setShowQuickDonate(false)} />
+          {showQuick && (
+            <QuickDonateModal
+              charities={charities}
+              onClose={() => setShowQuick(false)}
+              onDonated={() => sb && sb.from('donations').select('*').eq('user_id', user.id).order('donated_at', { ascending: false }).then(({ data }) => data && setDonations(data))}
+            />
           )}
         </div>
       );
